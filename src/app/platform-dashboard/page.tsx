@@ -25,6 +25,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Plan, type Todo } from "@/components/tool-ui/plan";
+import {
+  ProgressTracker,
+  type ProgressStep,
+} from "@/components/tool-ui/progress-tracker";
+import { cn } from "@/lib/utils";
 
 // ————————————————————————————————————————————————————————————————
 // Data
@@ -497,6 +502,19 @@ function ProjectsView() {
   const implementing = ACTIVE_PROJECTS.filter((p) => p.step >= 7);
   const discovering = ACTIVE_PROJECTS.filter((p) => p.step < 7);
 
+  // Pick the most-active project for the Live Activity card:
+  // first one that has an in-progress reasoning step, fallback to the
+  // one with the highest step count.
+  const liveProject = useMemo(() => {
+    const withInProgress = ACTIVE_PROJECTS.find((p) =>
+      p.reasoning?.some((r) => r.status === "in_progress"),
+    );
+    return (
+      withInProgress ??
+      [...ACTIVE_PROJECTS].sort((a, b) => b.step - a.step)[0]
+    );
+  }, []);
+
   return (
     <div className="max-w-[1200px] mx-auto px-10 pt-12 pb-24">
       <header className="flex items-end justify-between">
@@ -510,19 +528,20 @@ function ProjectsView() {
         </div>
       </header>
 
+      {/* Live Activity action card */}
+      {liveProject && (
+        <LiveActivityCard project={liveProject} />
+      )}
+
       {/* Implementing Phase */}
       {implementing.length > 0 && (
-        <div className="mt-10">
+        <div className="mt-12">
           <PhaseHeader
             phase="Implementing"
             count={implementing.length}
-            progress={Math.round(
-              (implementing.reduce((sum, p) => sum + p.step, 0) /
-                (implementing.length * 12)) *
-                100
-            )}
+            projects={implementing}
           />
-          <div className="mt-4 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
+          <div className="mt-5 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
             {implementing.map((project, i) => (
               <ProjectRow
                 key={project.id}
@@ -540,17 +559,13 @@ function ProjectsView() {
 
       {/* Requirements / Discovery Phase */}
       {discovering.length > 0 && (
-        <div className="mt-10">
+        <div className="mt-12">
           <PhaseHeader
             phase="Requirements / Discovery"
             count={discovering.length}
-            progress={Math.round(
-              (discovering.reduce((sum, p) => sum + p.step, 0) /
-                (discovering.length * 12)) *
-                100
-            )}
+            projects={discovering}
           />
-          <div className="mt-4 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
+          <div className="mt-5 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
             {discovering.map((project, i) => (
               <ProjectRow
                 key={project.id}
@@ -572,50 +587,165 @@ function ProjectsView() {
 }
 
 // ————————————————————————————————————————————————————————————————
-// Phase Header with Timeline
+// Phase Header with per-project milestone strip
 // ————————————————————————————————————————————————————————————————
+
+// The 12-step engagement pipeline, grouped into 6 displayable milestones.
+const MILESTONES = [
+  "Scope",
+  "Discovery",
+  "Scan",
+  "Deliver",
+  "Review",
+  "Implement",
+];
 
 function PhaseHeader({
   phase,
   count,
-  progress,
+  projects,
 }: {
   phase: string;
   count: number;
-  progress: number;
+  projects: Project[];
 }) {
+  const aggregate = Math.round(
+    (projects.reduce((sum, p) => sum + p.step, 0) / (projects.length * 12)) *
+      100,
+  );
+
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-end justify-between gap-6">
         <div>
-          <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-[#0f0e0d]">
+          <h2 className="font-serif text-[28px] font-normal leading-[1] tracking-[-0.01em] text-[#0f0e0d]">
             {phase}
           </h2>
-          <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-[#0f0e0d]/40">
-            {count} Project{count !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-[13px] font-semibold text-[#0f0e0d]">
-            {progress}%
-          </div>
-          <p className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-[#0f0e0d]/40">
-            Complete
+          <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
+            {count} Project{count !== 1 ? "s" : ""} · {aggregate}% complete
           </p>
         </div>
       </div>
-      {/* Progress bar */}
-      <div className="mt-3 h-1 bg-black/[0.08] rounded-full overflow-hidden">
-        <div
-          className="h-full bg-[#0f0e0d] rounded-full transition-all duration-500"
-          style={{ width: `${progress}%` }}
-          role="progressbar"
-          aria-valuenow={progress}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        />
+
+      {/* Per-project milestone strip */}
+      <div className="mt-4 rounded-lg border border-black/[0.06] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,14,13,0.02)]">
+        <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium mb-2.5">
+          <Activity className="h-3 w-3" strokeWidth={2} aria-hidden />
+          Pipeline
+        </div>
+        <div className="space-y-2">
+          {projects.map((p) => (
+            <MilestoneStrip key={p.id} project={p} />
+          ))}
+        </div>
       </div>
     </div>
+  );
+}
+
+function MilestoneStrip({ project }: { project: Project }) {
+  const currentMilestone = Math.min(
+    MILESTONES.length - 1,
+    Math.floor(((project.step - 1) / project.stepsTotal) * MILESTONES.length),
+  );
+  return (
+    <div className="grid grid-cols-[minmax(0,180px)_1fr_auto] items-center gap-3">
+      <div className="text-[12.5px] font-medium text-[#0f0e0d] truncate">
+        {project.company}
+      </div>
+      <div className="flex items-center gap-[3px]">
+        {MILESTONES.map((m, i) => {
+          const state =
+            i < currentMilestone
+              ? "done"
+              : i === currentMilestone
+                ? project.waitingOnClient
+                  ? "waiting"
+                  : "active"
+                : "pending";
+          return (
+            <div
+              key={m}
+              className="flex-1 flex flex-col items-start gap-1 min-w-0"
+            >
+              <div
+                className={cn(
+                  "h-[3px] w-full rounded-full",
+                  state === "done" && "bg-[#0f0e0d]",
+                  state === "active" && "bg-[#0f0e0d]",
+                  state === "waiting" && "bg-[#c78a36]",
+                  state === "pending" && "bg-black/[0.08]",
+                )}
+              />
+              <span
+                className={cn(
+                  "text-[9.5px] uppercase tracking-[0.08em] truncate",
+                  state === "pending"
+                    ? "text-[#0f0e0d]/30"
+                    : state === "waiting"
+                      ? "text-[#c78a36]"
+                      : "text-[#0f0e0d]/70",
+                )}
+              >
+                {m}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="text-[10.5px] font-mono text-[#0f0e0d]/50 tabular-nums whitespace-nowrap">
+        {project.step}/{project.stepsTotal}
+      </div>
+    </div>
+  );
+}
+
+// ————————————————————————————————————————————————————————————————
+// Live Activity action card (ProgressTracker)
+// ————————————————————————————————————————————————————————————————
+
+function LiveActivityCard({ project }: { project: Project }) {
+  // Transform Plan Todos into ProgressTracker steps (the two use slightly
+  // different status vocab, so normalize here).
+  const steps: ProgressStep[] = (project.reasoning ?? []).map((r) => ({
+    id: r.id,
+    label: r.label,
+    description: r.tool ? `Using ${r.tool.label}` : undefined,
+    status:
+      r.status === "completed"
+        ? "completed"
+        : r.status === "in_progress"
+          ? "in-progress"
+          : r.status === "awaiting_response"
+            ? "in-progress"
+            : "pending",
+  }));
+
+  return (
+    <section className="mt-10">
+      <div className="flex items-end justify-between gap-6 mb-4">
+        <div>
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1e6b3a] opacity-60" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1e6b3a]" />
+            </span>
+            Live Activity
+          </div>
+          <h2 className="mt-2 font-serif text-[28px] font-normal leading-[1] tracking-[-0.01em] text-[#0f0e0d]">
+            {project.company}
+          </h2>
+          <p className="mt-1 text-[12px] text-[#0f0e0d]/55">
+            {project.status} · Step {project.step} of {project.stepsTotal}
+          </p>
+        </div>
+      </div>
+      <ProgressTracker
+        id={`live-${project.id}`}
+        steps={steps}
+        elapsedTime={142_000}
+      />
+    </section>
   );
 }
 
