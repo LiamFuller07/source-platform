@@ -24,7 +24,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plan, type Todo } from "@/components/tool-ui/plan";
+import { Plan, type PlanTodo } from "@/components/tool-ui/plan";
 import {
   ProgressTracker,
   type ProgressStep,
@@ -34,6 +34,34 @@ import { cn } from "@/lib/utils";
 // ————————————————————————————————————————————————————————————————
 // Data
 // ————————————————————————————————————————————————————————————————
+
+/**
+ * Reasoning step shape used by the dashboard.
+ *
+ * Extends the canonical `PlanTodo` vocabulary with two project-specific
+ * concepts that aren't in the upstream `@tool-ui/plan` schema:
+ *   - `awaiting_response` status — for steps blocked on external (client) input
+ *   - `tool` chip — the tool the agent used / will use for this step
+ *
+ * Adapted down to the canonical `PlanTodo` / `ProgressStep` shape at the
+ * component boundary via `toPlanTodos` / `toProgressSteps` below, so the
+ * tool-ui components stay pristine.
+ */
+type ReasoningStep = {
+  id: string;
+  label: string;
+  status:
+    | "pending"
+    | "in_progress"
+    | "completed"
+    | "cancelled"
+    | "awaiting_response";
+  description?: string;
+  tool?: {
+    kind: "web" | "doc" | "sheet" | "db";
+    label: string;
+  };
+};
 
 type Project = {
   id: string;
@@ -50,8 +78,59 @@ type Project = {
   hoursNote?: string;
   waitingOnClient?: boolean;
   href?: string;
-  reasoning?: Todo[];
+  reasoning?: ReasoningStep[];
 };
+
+/**
+ * Adapt extended reasoning steps down to canonical `@tool-ui/plan` todos.
+ *
+ * - `awaiting_response` → `in_progress` (both are "active but not done"),
+ *   with the reason surfaced in the todo description.
+ * - `tool.label` is appended to / stored in the description so the upstream
+ *   Plan renders it as expandable secondary content.
+ */
+function toPlanTodos(steps: ReasoningStep[]): PlanTodo[] {
+  return steps.map((s) => {
+    const parts: string[] = [];
+    if (s.tool) parts.push(s.tool.label);
+    if (s.status === "awaiting_response") parts.push("Awaiting client response");
+    if (s.description) parts.push(s.description);
+
+    const description = parts.length > 0 ? parts.join(" · ") : undefined;
+
+    const status: PlanTodo["status"] =
+      s.status === "awaiting_response" ? "in_progress" : s.status;
+
+    return { id: s.id, label: s.label, status, description };
+  });
+}
+
+/**
+ * Adapt extended reasoning steps down to canonical `@tool-ui/progress-tracker`
+ * steps. Uses the same mapping as `toPlanTodos`, but with hyphenated status
+ * vocabulary (`in-progress` vs `in_progress`).
+ */
+function toProgressSteps(steps: ReasoningStep[]): ProgressStep[] {
+  return steps.map((s) => {
+    const parts: string[] = [];
+    if (s.tool) parts.push(s.tool.label);
+    if (s.status === "awaiting_response") parts.push("Awaiting client response");
+    if (s.description) parts.push(s.description);
+
+    const description = parts.length > 0 ? parts.join(" · ") : undefined;
+
+    const status: ProgressStep["status"] =
+      s.status === "completed"
+        ? "completed"
+        : s.status === "cancelled"
+          ? "failed"
+          : s.status === "in_progress" || s.status === "awaiting_response"
+            ? "in-progress"
+            : "pending";
+
+    return { id: s.id, label: s.label, description, status };
+  });
+}
 
 const ACTIVE_PROJECTS: Project[] = [
   {
@@ -705,21 +784,7 @@ function MilestoneStrip({ project }: { project: Project }) {
 // ————————————————————————————————————————————————————————————————
 
 function LiveActivityCard({ project }: { project: Project }) {
-  // Transform Plan Todos into ProgressTracker steps (the two use slightly
-  // different status vocab, so normalize here).
-  const steps: ProgressStep[] = (project.reasoning ?? []).map((r) => ({
-    id: r.id,
-    label: r.label,
-    description: r.tool ? `Using ${r.tool.label}` : undefined,
-    status:
-      r.status === "completed"
-        ? "completed"
-        : r.status === "in_progress"
-          ? "in-progress"
-          : r.status === "awaiting_response"
-            ? "in-progress"
-            : "pending",
-  }));
+  const steps = toProgressSteps(project.reasoning ?? []);
 
   return (
     <section className="mt-10">
@@ -878,11 +943,13 @@ function ProjectRow({
 
       {active && project.reasoning && (
         <div className="px-6 pb-6 pt-1">
-          <div className="mb-2.5 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
-            <Activity className="w-3 h-3" strokeWidth={2} />
-            Live reasoning
-          </div>
-          <Plan todos={project.reasoning} />
+          <Plan
+            id={`plan-${project.id}`}
+            title="Live reasoning"
+            description={`${project.company} · ${project.status}`}
+            todos={toPlanTodos(project.reasoning)}
+            maxVisibleTodos={6}
+          />
         </div>
       )}
     </div>
