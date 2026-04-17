@@ -29,10 +29,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Plan, type PlanTodo } from "@/components/tool-ui/plan";
-import {
-  ProgressTracker,
-  type ProgressStep,
-} from "@/components/tool-ui/progress-tracker";
 import { cn } from "@/lib/utils";
 
 // ————————————————————————————————————————————————————————————————
@@ -47,9 +43,9 @@ import { cn } from "@/lib/utils";
  *   - `awaiting_response` status — for steps blocked on external (client) input
  *   - `tool` chip — the tool the agent used / will use for this step
  *
- * Adapted down to the canonical `PlanTodo` / `ProgressStep` shape at the
- * component boundary via `toPlanTodos` / `toProgressSteps` below, so the
- * tool-ui components stay pristine.
+ * Adapted down to the canonical `PlanTodo` shape at the component
+ * boundary via `toPlanTodos` below, so the tool-ui component stays
+ * pristine.
  */
 type ReasoningStep = {
   id: string;
@@ -113,32 +109,7 @@ function toPlanTodos(steps: ReasoningStep[]): PlanTodo[] {
   });
 }
 
-/**
- * Adapt extended reasoning steps down to canonical `@tool-ui/progress-tracker`
- * steps. Uses the same mapping as `toPlanTodos`, but with hyphenated status
- * vocabulary (`in-progress` vs `in_progress`).
- */
-function toProgressSteps(steps: ReasoningStep[]): ProgressStep[] {
-  return steps.map((s) => {
-    const parts: string[] = [];
-    if (s.tool) parts.push(s.tool.label);
-    if (s.status === "awaiting_response") parts.push("Awaiting client response");
-    if (s.description) parts.push(s.description);
 
-    const description = parts.length > 0 ? parts.join(" · ") : undefined;
-
-    const status: ProgressStep["status"] =
-      s.status === "completed"
-        ? "completed"
-        : s.status === "cancelled"
-          ? "failed"
-          : s.status === "in_progress" || s.status === "awaiting_response"
-            ? "in-progress"
-            : "pending";
-
-    return { id: s.id, label: s.label, description, status };
-  });
-}
 
 const ACTIVE_PROJECTS: Project[] = [
   {
@@ -589,19 +560,6 @@ function ProjectsView() {
   const implementing = ACTIVE_PROJECTS.filter((p) => p.step >= 7);
   const discovering = ACTIVE_PROJECTS.filter((p) => p.step < 7);
 
-  // Pick the most-active project for the Live Activity card:
-  // first one that has an in-progress reasoning step, fallback to the
-  // one with the highest step count.
-  const liveProject = useMemo(() => {
-    const withInProgress = ACTIVE_PROJECTS.find((p) =>
-      p.reasoning?.some((r) => r.status === "in_progress"),
-    );
-    return (
-      withInProgress ??
-      [...ACTIVE_PROJECTS].sort((a, b) => b.step - a.step)[0]
-    );
-  }, []);
-
   return (
     <div className="max-w-[1200px] mx-auto px-10 pt-12 pb-24">
       <header className="flex items-end justify-between">
@@ -614,11 +572,6 @@ function ProjectsView() {
           </p>
         </div>
       </header>
-
-      {/* Live Activity action card */}
-      {liveProject && (
-        <LiveActivityCard project={liveProject} />
-      )}
 
       {/* Implementing Phase */}
       {implementing.length > 0 && (
@@ -874,41 +827,6 @@ function MilestoneStrip({ project }: { project: Project }) {
         {project.step}/{project.stepsTotal}
       </div>
     </div>
-  );
-}
-
-// ————————————————————————————————————————————————————————————————
-// Live Activity action card (ProgressTracker)
-// ————————————————————————————————————————————————————————————————
-
-function LiveActivityCard({ project }: { project: Project }) {
-  const steps = toProgressSteps(project.reasoning ?? []);
-
-  return (
-    <section className="mt-10">
-      <div className="flex items-end justify-between gap-6 mb-4">
-        <div>
-          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1e6b3a] opacity-60" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1e6b3a]" />
-            </span>
-            Live Activity
-          </div>
-          <h2 className="mt-2 font-serif text-[28px] font-normal leading-[1] tracking-[-0.01em] text-[#0f0e0d]">
-            {project.company}
-          </h2>
-          <p className="mt-1 text-[12px] text-[#0f0e0d]/55">
-            {project.status} · Step {project.step} of {project.stepsTotal}
-          </p>
-        </div>
-      </div>
-      <ProgressTracker
-        id={`live-${project.id}`}
-        steps={steps}
-        elapsedTime={142_000}
-      />
-    </section>
   );
 }
 
