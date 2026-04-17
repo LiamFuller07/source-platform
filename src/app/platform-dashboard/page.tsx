@@ -389,10 +389,10 @@ function Sidebar({
   return (
     <aside className="w-[224px] flex-shrink-0 border-r border-black/[0.06] bg-white/60 backdrop-blur-sm sticky top-0 h-screen flex flex-col">
       <div className="px-5 pt-7 pb-6">
-        <div className="text-[17px] font-semibold tracking-[-0.02em] text-[#0f0e0d] leading-none">
+        <div className="font-serif text-[28px] font-normal tracking-[-0.01em] text-[#0f0e0d] leading-[0.95]">
           Source
         </div>
-        <div className="mt-1.5 text-[9.5px] uppercase tracking-[0.16em] text-[#0f0e0d]/40">
+        <div className="mt-2 text-[9.5px] uppercase tracking-[0.16em] text-[#0f0e0d]/40">
           Pipeline Dashboard
         </div>
       </div>
@@ -498,10 +498,10 @@ function ProjectsView() {
     <div className="max-w-[1200px] mx-auto px-10 pt-12 pb-24">
       <header className="flex items-end justify-between">
         <div>
-          <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-[#0f0e0d] leading-none">
+          <h1 className="font-serif text-[52px] font-normal tracking-[-0.015em] text-[#0f0e0d] leading-[0.95]">
             Active Projects
           </h1>
-          <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
+          <p className="mt-4 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
             Click any row to view live reasoning
           </p>
         </div>
@@ -778,10 +778,10 @@ function ChatView() {
   return (
     <div className="max-w-[820px] mx-auto px-10 pt-12 pb-24 min-h-screen flex flex-col">
       <header>
-        <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-[#0f0e0d] leading-none">
+        <h1 className="font-serif text-[52px] font-normal tracking-[-0.015em] text-[#0f0e0d] leading-[0.95]">
           Ask Source
         </h1>
-        <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
+        <p className="mt-4 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
           Spin up a new engagement or ask about any project
         </p>
       </header>
@@ -801,7 +801,7 @@ function ChatView() {
               <MessageSquare className="w-3 h-3" strokeWidth={2} />
               Ask Source
             </div>
-            <h2 className="mt-3 text-[22px] font-semibold tracking-[-0.015em] text-[#0f0e0d] max-w-[520px] mx-auto text-balance">
+            <h2 className="mt-3 font-serif text-[40px] font-normal leading-[1.02] tracking-[-0.01em] text-[#0f0e0d] max-w-[560px] mx-auto text-balance">
               Spin up a new engagement or ask about any project.
             </h2>
           </div>
