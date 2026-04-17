@@ -50,14 +50,17 @@ export type PlanProps = {
 // ————————————————————————————————————————————————————————————————
 
 export function Plan({ title, description, todos, className }: PlanProps) {
+  const hasHeader = title || description;
+  
   return (
     <div
       className={cn(
-        "bg-white rounded-xl border border-black/[0.07] shadow-[0_1px_2px_rgba(15,14,13,0.03)] overflow-hidden",
+        hasHeader && "bg-white rounded-xl border border-black/[0.07] shadow-[0_1px_2px_rgba(15,14,13,0.03)]",
+        "overflow-hidden",
         className,
       )}
     >
-      {(title || description) && (
+      {hasHeader && (
         <div className="px-5 pt-4 pb-3 border-b border-black/[0.05]">
           {title && (
             <div className="text-[12.5px] font-semibold text-[#0f0e0d] tracking-[-0.005em]">
@@ -71,11 +74,14 @@ export function Plan({ title, description, todos, className }: PlanProps) {
           )}
         </div>
       )}
-      <ul className="divide-y divide-black/[0.04]">
+      <ul className={cn("divide-y", hasHeader ? "divide-black/[0.04]" : "space-y-3")}>
         {todos.map((t) => (
           <li
             key={t.id}
-            className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-5 py-2.5"
+            className={cn(
+              "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3",
+              hasHeader ? "px-5 py-2.5" : "py-2"
+            )}
           >
             <span
               className={cn(
