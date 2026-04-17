@@ -723,6 +723,46 @@ const TOOL_KIND_META: Record<
  * pristine in its tight list-only mode), and any steps with a `tool` chip
  * surface in a right-aligned summary below the timeline.
  */
+/**
+ * className overrides that scale `Plan.Compact`'s default sizing down to
+ * match the dashboard's dense row density.
+ *
+ * We do NOT modify the upstream `@tool-ui/plan` source — these overrides
+ * target the component's stable DOM structure:
+ *   - status bubble: the only `span.rounded-full` inside the Plan
+ *   - connector:     the only `.bg-border` with `w-px`
+ *   - label:         the `.flex-1 > span`
+ *
+ * Strips the outer Card chrome and replaces the default
+ * `size-6` / `text-sm leading-6` / `py-1.5` rhythm with a
+ * `size-4` / `text-[12px] leading-4` / `py-0.5` rhythm — roughly half
+ * the vertical footprint per row.
+ *
+ * Connector repositioning math:
+ *   Original (size-6 bubble, py-1.5):
+ *     bubble center x=20px, bubble bottom y=30px → top-6 (24), left-5 (20)
+ *   Dense   (size-4 bubble, py-0.5):
+ *     bubble center x=16px, bubble bottom y=18px → top-4 (16), left-4 (16)
+ */
+const DENSE_PLAN_CLASS = cn(
+  // Strip the outer shadcn Card chrome so the Plan sits inline on the row bg.
+  "max-w-none min-w-0 w-full border-0 bg-transparent shadow-none py-0 gap-0",
+  // Kill padding inside the CardContent wrapper too.
+  "[&>[data-slot=card-content]]:px-0",
+  // Tighten the <ul> vertical rhythm.
+  "[&_ul]:space-y-0 [&_ul]:mt-0",
+  // Shrink each <li> row: less padding, smaller gap.
+  "[&_li]:py-0.5 [&_li]:gap-2.5",
+  // Shrink status bubble from 24px → 16px.
+  "[&_li_span.rounded-full]:size-4",
+  // Shrink the icon inside the bubble (Loader2 / Check) proportionally.
+  "[&_li_span.rounded-full_svg]:size-2.5",
+  // Shrink the label text to match dashboard density.
+  "[&_li_.flex-1>span]:text-[12px] [&_li_.flex-1>span]:leading-4",
+  // Reposition the vertical connector to center on the smaller bubble.
+  "[&_li_.bg-border]:top-4 [&_li_.bg-border]:left-4",
+);
+
 function ReasoningPanel({ steps }: { steps: ReasoningStep[] }) {
   const todos = toPlanTodos(steps);
   const completedCount = steps.filter((s) => s.status === "completed").length;
@@ -736,21 +776,21 @@ function ReasoningPanel({ steps }: { steps: ReasoningStep[] }) {
     .map((s) => ({ id: s.id, tool: s.tool! }));
 
   return (
-    <div className="px-6 pb-6 pt-2">
+    <div className="px-6 pb-5 pt-1.5">
       {/* Compact header — sits on the row's own bg (no nested card) */}
-      <div className="flex items-center justify-between gap-4 mb-2.5">
+      <div className="flex items-center justify-between gap-4 mb-2">
         <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
           <Activity className="w-3 h-3" strokeWidth={2} aria-hidden />
           Live Reasoning
         </div>
-        <div className="text-[10.5px] font-mono text-[#0f0e0d]/50 tabular-nums">
+        <div className="text-[10px] font-mono text-[#0f0e0d]/50 tabular-nums">
           {completedCount} / {totalCount} complete
         </div>
       </div>
 
       {/* Thin progress bar */}
       <div
-        className="h-[2px] bg-black/[0.08] rounded-full overflow-hidden mb-3"
+        className="h-[2px] bg-black/[0.08] rounded-full overflow-hidden mb-2.5"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
@@ -762,22 +802,21 @@ function ReasoningPanel({ steps }: { steps: ReasoningStep[] }) {
         />
       </div>
 
-      {/* Authentic tool-ui Plan, chrome-stripped to sit inline on the row.
-          We do NOT modify the upstream component — the className overrides
-          only target the outer shadcn <Card> wrapper. */}
+      {/* Authentic tool-ui Plan, chrome-stripped + densified via className.
+          The upstream component source is untouched. */}
       <Plan.Compact
         id={`reasoning-${steps[0]?.id ?? "empty"}`}
         todos={todos}
         maxVisibleTodos={todos.length}
-        className="max-w-none min-w-0 w-full border-0 bg-transparent shadow-none py-0 gap-0"
+        className={DENSE_PLAN_CLASS}
       />
 
       {/* Tool summary — shown once below the timeline rather than inline so
           rows stay visually consistent (inline descriptions would trigger
           the Plan's Collapsible path and break the step connector). */}
       {toolsUsed.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-black/[0.06] flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium mr-1">
+        <div className="mt-2.5 pt-2.5 border-t border-black/[0.06] flex items-center gap-1.5 flex-wrap">
+          <span className="text-[9.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium mr-0.5">
             Tools
           </span>
           {toolsUsed.map(({ id, tool }) => (
