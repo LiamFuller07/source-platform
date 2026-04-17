@@ -1021,53 +1021,100 @@ function DiscoveryExpansionPanel({ project }: { project: Project }) {
   const d = project.discovery!;
   const captured = d.transcripts.length;
   const target = d.stakeholdersTarget;
-  const totalMinutes = d.transcripts.reduce((s, t) => s + t.minutes, 0);
   const isComplete = captured >= target;
 
+  // Extract needed credentials/systems from analysis or use defaults
+  const blockers = [
+    { system: "NetSuite Sandbox", status: "pending" as const, notes: "Awaiting admin to provision" },
+    { system: "API Credentials", status: "pending" as const, notes: "OAuth setup ready, waiting for approval" },
+    {
+      system: "Data Extract",
+      status: "in_progress" as const,
+      notes: "Three-year GL history requested",
+    },
+  ];
+
   return (
-    <div className="px-6 pb-6 pt-1">
-      {/* Panel header — coverage + totals */}
-      <div className="flex items-center justify-between gap-4 mb-3 pb-3 border-b border-black/[0.06]">
-        <div className="flex items-center gap-4">
+    <div className="px-6 pb-6 pt-4">
+      {/* Header — Discovery status summary */}
+      <div className="flex items-center justify-between gap-4 mb-4 pb-4 border-b border-black/[0.06]">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
-            <Mic className="w-3 h-3" strokeWidth={2} aria-hidden />
-            Discovery
+            <Lock className="w-3 h-3" strokeWidth={2} aria-hidden />
+            Waiting for Credentials & Data Access
           </div>
-          <Separator orientation="vertical" className="h-3 bg-black/[0.1]" />
-          <div className="flex items-center gap-1.5 text-[11px] text-[#0f0e0d]/70">
-            <span
-              className={cn(
-                "inline-block w-1.5 h-1.5 rounded-full",
-                isComplete ? "bg-[#1e6b3a]" : "bg-[#c78a36]",
-              )}
-              aria-hidden
-            />
-            <span className="tabular-nums">
-              {captured} of {target} stakeholders
-            </span>
-          </div>
-          <Separator orientation="vertical" className="h-3 bg-black/[0.1]" />
-          <span className="text-[11px] text-[#0f0e0d]/70 tabular-nums">
-            {totalMinutes}m of recordings
-          </span>
         </div>
         <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium">
-          AI synthesis · live
+          {isComplete ? "Coverage complete" : `${target - captured} stakeholders pending`}
         </span>
       </div>
 
-      {/* Body — two columns: transcripts | analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-6">
-        <TranscriptsColumn
-          transcripts={d.transcripts}
-          missing={d.missingStakeholders}
-          target={target}
-        />
-        <AnalysisColumn analysis={d.analysis} keyFinding={d.keyFinding} />
+      {/* Credentials/access blockers — status cards */}
+      <div className="grid grid-cols-1 gap-2.5 mb-4">
+        {blockers.map((blocker, i) => (
+          <CredentialBlocker key={i} blocker={blocker} />
+        ))}
       </div>
 
-      {/* Chat input — scoped to this project's discovery context */}
-      <DiscoveryChatInput project={project} />
+      {/* Materials shared/pending */}
+      {d.materials && d.materials.length > 0 && (
+        <div className="pt-3 border-t border-black/[0.06]">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium mb-2.5">
+            Deliverables
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {d.materials.map((m) => (
+              <MaterialChip key={m.id} material={m} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A single blocker/requirement card showing a system or credential that
+ * needs to be provisioned by the client before we can proceed.
+ */
+function CredentialBlocker({
+  blocker,
+}: {
+  blocker: { system: string; status: "pending" | "in_progress"; notes: string };
+}) {
+  const statusColor =
+    blocker.status === "in_progress"
+      ? "bg-[#fef3e0] border-[#c78a36] text-[#c78a36]"
+      : "bg-[#f5f3f1] border-[#0f0e0d]/20 text-[#0f0e0d]/50";
+
+  const statusLabel =
+    blocker.status === "in_progress" ? "⟳ In Progress" : "○ Pending";
+
+  return (
+    <div
+      className={cn(
+        "rounded-md border px-3 py-2.5 flex items-start gap-3",
+        statusColor
+      )}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="text-[12px] font-medium text-[#0f0e0d]">
+          {blocker.system}
+        </div>
+        <div className="mt-0.5 text-[10.5px] text-[#0f0e0d]/60">
+          {blocker.notes}
+        </div>
+      </div>
+      <div
+        className={cn(
+          "text-[9px] uppercase tracking-[0.12em] font-semibold whitespace-nowrap flex-shrink-0 px-2 py-1 rounded",
+          blocker.status === "in_progress"
+            ? "bg-[#fbf2e1]/60 text-[#c78a36]"
+            : "bg-[#0f0e0d]/5 text-[#0f0e0d]/50"
+        )}
+      >
+        {statusLabel}
+      </div>
     </div>
   );
 }
