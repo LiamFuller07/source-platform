@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { Inter, Instrument_Serif } from "next/font/google";
+import { DM_Sans, Instrument_Serif } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -10,7 +10,11 @@ const coolvetica = localFont({
   variable: "--font-display",
 });
 
-const inter = Inter({
+// DM Sans is the closest free Google-Fonts match to "Skandiasn" (Skandia
+// Sans / Scandia) — same humanist-geometric character, two-story a/g.
+// "Skandiasn" is listed first in the --font-sans stack below so any
+// viewer with the licensed font installed locally will render it instead.
+const dmSans = DM_Sans({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   display: "swap",
@@ -37,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${coolvetica.variable} ${inter.variable} ${instrumentSerif.variable}`}>
+    <html lang="en" className={`${coolvetica.variable} ${dmSans.variable} ${instrumentSerif.variable}`}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
