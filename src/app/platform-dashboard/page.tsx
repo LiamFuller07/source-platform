@@ -494,6 +494,9 @@ function MiniStat({
 function ProjectsView() {
   const [selected, setSelected] = useState<string | null>("atl");
 
+  const implementing = ACTIVE_PROJECTS.filter((p) => p.step >= 7);
+  const discovering = ACTIVE_PROJECTS.filter((p) => p.step < 7);
+
   return (
     <div className="max-w-[1200px] mx-auto px-10 pt-12 pb-24">
       <header className="flex items-end justify-between">
@@ -507,21 +510,111 @@ function ProjectsView() {
         </div>
       </header>
 
-      <div className="mt-10 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
-        {ACTIVE_PROJECTS.map((project, i) => (
-          <ProjectRow
-            key={project.id}
-            project={project}
-            isFirst={i === 0}
-            active={selected === project.id}
-            onClick={() =>
-              setSelected((s) => (s === project.id ? null : project.id))
-            }
+      {/* Implementing Phase */}
+      {implementing.length > 0 && (
+        <div className="mt-10">
+          <PhaseHeader
+            phase="Implementing"
+            count={implementing.length}
+            progress={Math.round(
+              (implementing.reduce((sum, p) => sum + p.step, 0) /
+                (implementing.length * 12)) *
+                100
+            )}
           />
-        ))}
-      </div>
+          <div className="mt-4 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
+            {implementing.map((project, i) => (
+              <ProjectRow
+                key={project.id}
+                project={project}
+                isFirst={i === 0}
+                active={selected === project.id}
+                onClick={() =>
+                  setSelected((s) => (s === project.id ? null : project.id))
+                }
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Requirements / Discovery Phase */}
+      {discovering.length > 0 && (
+        <div className="mt-10">
+          <PhaseHeader
+            phase="Requirements / Discovery"
+            count={discovering.length}
+            progress={Math.round(
+              (discovering.reduce((sum, p) => sum + p.step, 0) /
+                (discovering.length * 12)) *
+                100
+            )}
+          />
+          <div className="mt-4 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
+            {discovering.map((project, i) => (
+              <ProjectRow
+                key={project.id}
+                project={project}
+                isFirst={i === 0}
+                active={selected === project.id}
+                onClick={() =>
+                  setSelected((s) => (s === project.id ? null : project.id))
+                }
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <PastMigrations projects={PAST_PROJECTS} />
+    </div>
+  );
+}
+
+// ————————————————————————————————————————————————————————————————
+// Phase Header with Timeline
+// ————————————————————————————————————————————————————————————————
+
+function PhaseHeader({
+  phase,
+  count,
+  progress,
+}: {
+  phase: string;
+  count: number;
+  progress: number;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-[#0f0e0d]">
+            {phase}
+          </h2>
+          <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-[#0f0e0d]/40">
+            {count} Project{count !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="text-[13px] font-semibold text-[#0f0e0d]">
+            {progress}%
+          </div>
+          <p className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-[#0f0e0d]/40">
+            Complete
+          </p>
+        </div>
+      </div>
+      {/* Progress bar */}
+      <div className="mt-3 h-1 bg-black/[0.08] rounded-full overflow-hidden">
+        <div
+          className="h-full bg-[#0f0e0d] rounded-full transition-all duration-500"
+          style={{ width: `${progress}%` }}
+          role="progressbar"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        />
+      </div>
     </div>
   );
 }
