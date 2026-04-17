@@ -331,13 +331,9 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
         onSignOut={onSignOut}
       />
 
-      <div className="mt-12 rounded-xl border border-black/[0.06] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
-        {ACTIVE_PROJECTS.map((project, i) => (
-          <ProjectRow
-            key={project.id}
-            project={project}
-            isFirst={i === 0}
-          />
+      <div className="mt-10 border-t border-black/[0.08]">
+        {ACTIVE_PROJECTS.map((project) => (
+          <ProjectRow key={project.id} project={project} />
         ))}
       </div>
 
@@ -404,26 +400,14 @@ function Counter({ value, label }: { value: number; label: string }) {
 // Project row
 // ————————————————————————————————————————————————————————————————
 
-function ProjectRow({
-  project,
-  isFirst,
-}: {
-  project: Project;
-  isFirst: boolean;
-}) {
+function ProjectRow({ project }: { project: Project }) {
   const waiting = project.waitingOnClient;
   const complete = project.step === project.stepsTotal;
 
   return (
     <a
       href={project.href ?? "#"}
-      className={[
-        "relative grid grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-6",
-        "px-6 py-5 group transition-colors hover:bg-[#fafaf8]",
-        !isFirst && "border-t border-black/[0.05]",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      className="relative grid grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-6 px-6 py-6 group transition-colors hover:bg-black/[0.015] border-b border-black/[0.08]"
     >
       {/* left waiting accent */}
       {waiting && (
@@ -553,9 +537,9 @@ function PastMigrations({ projects }: { projects: Project[] }) {
           Past Migrations ({projects.length})
         </button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-4 rounded-xl border border-black/[0.06] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
-        {projects.map((project, i) => (
-          <ProjectRow key={project.id} project={project} isFirst={i === 0} />
+      <CollapsibleContent className="mt-4 border-t border-black/[0.08]">
+        {projects.map((project) => (
+          <ProjectRow key={project.id} project={project} />
         ))}
       </CollapsibleContent>
     </Collapsible>
