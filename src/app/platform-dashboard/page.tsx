@@ -17,6 +17,8 @@ import {
   FileText,
   FileSpreadsheet,
   Database,
+  Mic,
+  CircleDashed,
 } from "lucide-react";
 import {
   Collapsible,
@@ -28,6 +30,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { Plan, type PlanTodo } from "@/components/tool-ui/plan";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +72,30 @@ type ReasoningStep = {
   };
 };
 
+/**
+ * A stakeholder call transcript captured during discovery.
+ *
+ * Used only during the Discovery phase (pre-system-access), where our
+ * primary context-gathering mechanism is calls rather than API scans.
+ */
+type Transcript = {
+  id: string;
+  role: string; // e.g. "CFO", "Ops lead", "IT lead", "Controller"
+  name: string;
+  minutes: number;
+  source?: "granola" | "zoom" | "manual";
+};
+
+type DiscoveryContext = {
+  transcripts: Transcript[];
+  /** Total stakeholders expected to be interviewed before discovery is complete. */
+  stakeholdersTarget: number;
+  /** 1–2 sentence reasoning snippet summarizing what was learned across calls. */
+  keyFinding?: string;
+  /** Access level we currently have to their systems. */
+  accessStatus: "no-access" | "awaiting-credentials" | "read-only";
+};
+
 type Project = {
   id: string;
   company: string;
@@ -79,6 +112,7 @@ type Project = {
   waitingOnClient?: boolean;
   href?: string;
   reasoning?: ReasoningStep[];
+  discovery?: DiscoveryContext;
 };
 
 /**
@@ -123,6 +157,16 @@ const ACTIVE_PROJECTS: Project[] = [
     priceNote: "PRICE RANGE",
     hoursNote: "PENDING SCAN",
     href: "/platform",
+    discovery: {
+      transcripts: [
+        { id: "t1", role: "CFO", name: "Jane Okafor", minutes: 31, source: "granola" },
+        { id: "t2", role: "Ops lead", name: "Mark Reyes", minutes: 22, source: "granola" },
+        { id: "t3", role: "IT lead", name: "Priya Shah", minutes: 17, source: "granola" },
+      ],
+      stakeholdersTarget: 3,
+      keyFinding: "Ghost system flagged · Shopify consumer SOR syncs nightly into QBO",
+      accessStatus: "read-only",
+    },
     reasoning: [
       {
         id: "r1",
@@ -286,6 +330,14 @@ const ACTIVE_PROJECTS: Project[] = [
     hoursNote: "PENDING SCAN",
     waitingOnClient: true,
     href: "/platform",
+    discovery: {
+      transcripts: [
+        { id: "t1", role: "Controller", name: "Dan Whittaker", minutes: 28, source: "zoom" },
+      ],
+      stakeholdersTarget: 3,
+      keyFinding: "NetSuite sandbox access pending · Ops runs side-car Airtable for inventory",
+      accessStatus: "awaiting-credentials",
+    },
     reasoning: [
       {
         id: "r1",
@@ -326,6 +378,15 @@ const ACTIVE_PROJECTS: Project[] = [
     hoursNote: "EST. AI HOURS",
     waitingOnClient: true,
     href: "/platform",
+    discovery: {
+      transcripts: [
+        { id: "t1", role: "CEO", name: "Rafael Ortiz", minutes: 24, source: "granola" },
+        { id: "t2", role: "Finance lead", name: "Lena Park", minutes: 35, source: "granola" },
+      ],
+      stakeholdersTarget: 2,
+      keyFinding: "Taproom POS feeds QBO nightly · needs class-based tracking in NetSuite",
+      accessStatus: "read-only",
+    },
     reasoning: [
       {
         id: "r1",
@@ -552,7 +613,7 @@ function MiniStat({
 
 // ————————————————————————————————————————————————————————————————
 // Projects view
-// —���——————————————————————————————————————————————————————————————
+// —�����——————————————————————————————————————————————————————————————
 
 function ProjectsView() {
   const [selected, setSelected] = useState<string | null>("atl");
@@ -573,16 +634,20 @@ function ProjectsView() {
         </div>
       </header>
 
-      {/* Implementing Phase */}
-      {implementing.length > 0 && (
+      {/* Discovery Phase — pinned to the top. Projects here are still in
+          context-gathering: we're tracking stakeholder calls / transcripts
+          rather than system scans, because we may not even have access yet. */}
+      {discovering.length > 0 && (
         <div className="mt-12">
           <PhaseHeader
-            phase="Implementing"
-            count={implementing.length}
-            projects={implementing}
+            phase="Discovery"
+            subtitle="Gathering context via stakeholder calls"
+            count={discovering.length}
+            projects={discovering}
+            variant="discovery"
           />
           <div className="mt-5 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
-            {implementing.map((project, i) => (
+            {discovering.map((project, i) => (
               <ProjectRow
                 key={project.id}
                 project={project}
@@ -597,16 +662,18 @@ function ProjectsView() {
         </div>
       )}
 
-      {/* Requirements / Discovery Phase */}
-      {discovering.length > 0 && (
+      {/* Implementing Phase — projects past discovery with system access. */}
+      {implementing.length > 0 && (
         <div className="mt-12">
           <PhaseHeader
-            phase="Requirements / Discovery"
-            count={discovering.length}
-            projects={discovering}
+            phase="Implementing"
+            subtitle="Scanning, drafting, and delivering"
+            count={implementing.length}
+            projects={implementing}
+            variant="implementing"
           />
           <div className="mt-5 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
-            {discovering.map((project, i) => (
+            {implementing.map((project, i) => (
               <ProjectRow
                 key={project.id}
                 project={project}
@@ -749,16 +816,26 @@ const MILESTONES = [
 
 function PhaseHeader({
   phase,
+  subtitle,
   count,
   projects,
+  variant,
 }: {
   phase: string;
+  subtitle?: string;
   count: number;
   projects: Project[];
+  variant: "discovery" | "implementing";
 }) {
   const aggregate = Math.round(
     (projects.reduce((sum, p) => sum + p.step, 0) / (projects.length * 12)) *
       100,
+  );
+
+  // Discovery phase has its own KPI: total transcripts captured.
+  const totalTranscripts = projects.reduce(
+    (sum, p) => sum + (p.discovery?.transcripts.length ?? 0),
+    0,
   );
 
   return (
@@ -769,23 +846,33 @@ function PhaseHeader({
             {phase}
           </h2>
           <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
-            {count} Project{count !== 1 ? "s" : ""} · {aggregate}% complete
+            {count} Project{count !== 1 ? "s" : ""}
+            {variant === "discovery" && totalTranscripts > 0
+              ? ` · ${totalTranscripts} Transcripts captured`
+              : ` · ${aggregate}% complete`}
           </p>
+          {subtitle && (
+            <p className="mt-1 text-[13px] text-[#0f0e0d]/55">{subtitle}</p>
+          )}
         </div>
       </div>
 
-      {/* Per-project milestone strip */}
-      <div className="mt-4 rounded-lg border border-black/[0.06] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,14,13,0.02)]">
-        <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium mb-2.5">
-          <Activity className="h-3 w-3" strokeWidth={2} aria-hidden />
-          Pipeline
+      {variant === "discovery" ? (
+        <DiscoveryTracker projects={projects} />
+      ) : (
+        // Per-project milestone strip for implementing projects
+        <div className="mt-4 rounded-lg border border-black/[0.06] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,14,13,0.02)]">
+          <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium mb-2.5">
+            <Activity className="h-3 w-3" strokeWidth={2} aria-hidden />
+            Pipeline
+          </div>
+          <div className="space-y-2">
+            {projects.map((p) => (
+              <MilestoneStrip key={p.id} project={p} />
+            ))}
+          </div>
         </div>
-        <div className="space-y-2">
-          {projects.map((p) => (
-            <MilestoneStrip key={p.id} project={p} />
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -844,6 +931,174 @@ function MilestoneStrip({ project }: { project: Project }) {
         {project.step}/{project.stepsTotal}
       </div>
     </div>
+  );
+}
+
+// ————————————————————————————————————————————————————————————————
+// Discovery Tracker — replaces the MilestoneStrip for discovery projects
+//
+// Displays transcripts captured per project, stakeholder coverage, access
+// status, and the AI's current reasoning summary from those calls. This is
+// the primary context-gathering surface for engagements that don't have
+// system access yet — we don't have APIs to scan, just conversations to
+// synthesize.
+// ————————————————————————————————————————————————————————————————
+
+const ACCESS_META: Record<
+  DiscoveryContext["accessStatus"],
+  { label: string; tone: "neutral" | "amber" | "green" }
+> = {
+  "no-access": { label: "No access", tone: "amber" },
+  "awaiting-credentials": { label: "Awaiting credentials", tone: "amber" },
+  "read-only": { label: "Read-only", tone: "green" },
+};
+
+function DiscoveryTracker({ projects }: { projects: Project[] }) {
+  return (
+    <div className="mt-4 rounded-lg border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(15,14,13,0.02)] overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-black/[0.05]">
+        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
+          <Mic className="h-3 w-3" strokeWidth={2} aria-hidden />
+          Discovery Tracker
+        </div>
+        <div className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium">
+          Source · Granola
+        </div>
+      </div>
+      <ul className="divide-y divide-black/[0.05]">
+        {projects.map((p) => (
+          <li key={p.id} className="px-4 py-3.5">
+            <DiscoveryRow project={p} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function DiscoveryRow({ project }: { project: Project }) {
+  const d = project.discovery;
+  if (!d) {
+    // Fallback for discovery projects that somehow have no call data yet.
+    return (
+      <div className="flex items-center justify-between gap-4">
+        <div className="text-[13px] font-medium text-[#0f0e0d] truncate">
+          {project.company}
+        </div>
+        <div className="text-[11px] text-[#0f0e0d]/45">No transcripts yet</div>
+      </div>
+    );
+  }
+
+  const captured = d.transcripts.length;
+  const target = d.stakeholdersTarget;
+  const access = ACCESS_META[d.accessStatus];
+
+  return (
+    <div className="grid grid-cols-[minmax(0,200px)_1fr] gap-4 items-start">
+      {/* LEFT: company + stakeholder coverage + access status */}
+      <div className="min-w-0 flex flex-col gap-1.5">
+        <div className="text-[13px] font-medium text-[#0f0e0d] truncate leading-tight">
+          {project.company}
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10.5px] text-[#0f0e0d]/55 tabular-nums">
+            {captured} / {target} stakeholders
+          </span>
+          <Separator
+            orientation="vertical"
+            className="h-2.5 bg-black/[0.1]"
+          />
+          <Badge
+            variant="outline"
+            className={cn(
+              "h-[18px] px-1.5 text-[9.5px] uppercase tracking-[0.1em] font-medium rounded-full border",
+              access.tone === "green" &&
+                "bg-[#eaf3ec] text-[#1e6b3a] border-[#c8dfcd]",
+              access.tone === "amber" &&
+                "bg-[#fbf2e1] text-[#8a5a12] border-[#ecd6a8]",
+              access.tone === "neutral" &&
+                "bg-black/[0.04] text-[#0f0e0d]/60 border-black/[0.08]",
+            )}
+          >
+            {access.label}
+          </Badge>
+        </div>
+      </div>
+
+      {/* RIGHT: transcript chips + key finding */}
+      <div className="min-w-0 flex flex-col gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {d.transcripts.map((t) => (
+            <TranscriptChip key={t.id} transcript={t} />
+          ))}
+          {Array.from({ length: Math.max(0, target - captured) }).map(
+            (_, i) => (
+              <span
+                key={`missing-${i}`}
+                className="inline-flex items-center gap-1 h-[22px] rounded-full border border-dashed border-[#c78a36]/50 bg-[#fbf2e1]/40 px-2 text-[10.5px] text-[#c78a36]"
+              >
+                <CircleDashed className="h-3 w-3" strokeWidth={2} aria-hidden />
+                Needed
+              </span>
+            ),
+          )}
+        </div>
+        {d.keyFinding && (
+          <p className="text-[11.5px] italic text-[#0f0e0d]/60 leading-snug">
+            <span className="not-italic text-[9.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 mr-1.5 font-medium">
+              Finding
+            </span>
+            {d.keyFinding}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TranscriptChip({ transcript }: { transcript: Transcript }) {
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 h-[22px] rounded-full border border-black/[0.08] bg-white px-2 text-[10.5px] text-[#0f0e0d] leading-none hover:border-black/[0.18] hover:bg-[#fafaf8] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+        >
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#1e6b3a]" />
+          <span className="font-medium">{transcript.role}</span>
+          <Separator
+            orientation="vertical"
+            className="h-2.5 bg-black/[0.1]"
+          />
+          <span className="tabular-nums text-[#0f0e0d]/60">
+            {transcript.minutes}m
+          </span>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="top"
+        align="start"
+        className="w-60 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+      >
+        <div className="p-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
+              Transcript
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium">
+              {transcript.source ?? "granola"}
+            </span>
+          </div>
+          <div className="text-[13px] font-semibold text-[#0f0e0d] leading-tight">
+            {transcript.name}
+          </div>
+          <div className="mt-0.5 text-[11.5px] text-[#0f0e0d]/60">
+            {transcript.role} · {transcript.minutes} min
+          </div>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
