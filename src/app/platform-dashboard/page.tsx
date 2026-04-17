@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   ExternalLink,
   ChevronDown,
@@ -11,6 +11,8 @@ import {
   Sparkles,
   ArrowRight,
   MessageSquare,
+  LayoutGrid,
+  Activity,
 } from "lucide-react";
 import {
   Collapsible,
@@ -22,6 +24,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Plan, type Todo } from "@/components/tool-ui/plan";
 
 // ————————————————————————————————————————————————————————————————
 // Data
@@ -30,18 +33,19 @@ import {
 type Project = {
   id: string;
   company: string;
-  systems: string; // e.g. "QBO ADVANCED → NETSUITE ONEWORLD"
+  systems: string;
   status: string;
-  step: number; // 1-12
-  stepsTotal: number; // always 12
-  stalledFor?: string; // e.g. "42D 10H"
+  step: number;
+  stepsTotal: number;
+  stalledFor?: string;
   stalledReason?: string;
-  priceRange?: string; // e.g. "$7K – $11.5K" or "$21,500"
-  priceNote?: string; // e.g. "PRICE RANGE" or "FIXED"
-  hoursRange?: string; // e.g. "28–36h"
-  hoursNote?: string; // e.g. "EST. AI HOURS" or "PENDING SCAN"
+  priceRange?: string;
+  priceNote?: string;
+  hoursRange?: string;
+  hoursNote?: string;
   waitingOnClient?: boolean;
   href?: string;
+  reasoning?: Todo[];
 };
 
 const ACTIVE_PROJECTS: Project[] = [
@@ -56,6 +60,37 @@ const ACTIVE_PROJECTS: Project[] = [
     priceNote: "PRICE RANGE",
     hoursNote: "PENDING SCAN",
     href: "/platform",
+    reasoning: [
+      {
+        id: "r1",
+        label: "Connect to QBO Advanced sandbox",
+        status: "completed",
+        tool: { kind: "db", label: "QBO API" },
+      },
+      {
+        id: "r2",
+        label: "Enumerate GL accounts and sub-accounts",
+        status: "completed",
+        tool: { kind: "sheet", label: "COA export" },
+      },
+      {
+        id: "r3",
+        label: "Scan vendor master for duplicates",
+        status: "in_progress",
+        tool: { kind: "db", label: "QBO API" },
+      },
+      {
+        id: "r4",
+        label: "Identify ghost systems and side-car integrations",
+        status: "pending",
+        tool: { kind: "web", label: "Web" },
+      },
+      {
+        id: "r5",
+        label: "Estimate AI hours and draft price range",
+        status: "pending",
+      },
+    ],
   },
   {
     id: "mrg",
@@ -69,6 +104,31 @@ const ACTIVE_PROJECTS: Project[] = [
     hoursRange: "28–36h",
     hoursNote: "EST. AI HOURS",
     href: "/platform",
+    reasoning: [
+      {
+        id: "r1",
+        label: "Transcripts ingested from Granola (3 sessions)",
+        status: "completed",
+        tool: { kind: "doc", label: "Transcripts" },
+      },
+      {
+        id: "r2",
+        label: "QuickBooks Plus read-only scan complete",
+        status: "completed",
+        tool: { kind: "db", label: "QBO API" },
+      },
+      {
+        id: "r3",
+        label: "Generate BRD v2 incorporating Shopify ghost system",
+        status: "in_progress",
+        tool: { kind: "doc", label: "BRD v2.docx" },
+      },
+      {
+        id: "r4",
+        label: "Route BRD v2 to partner for sign-off",
+        status: "pending",
+      },
+    ],
   },
   {
     id: "atl",
@@ -85,6 +145,31 @@ const ACTIVE_PROJECTS: Project[] = [
     hoursNote: "EST. AI HOURS",
     waitingOnClient: true,
     href: "/platform",
+    reasoning: [
+      {
+        id: "r1",
+        label: "Xero multi-entity scan complete",
+        status: "completed",
+        tool: { kind: "db", label: "Xero API" },
+      },
+      {
+        id: "r2",
+        label: "BRD v1 drafted · 14 pages",
+        status: "completed",
+        tool: { kind: "doc", label: "BRD v1.docx" },
+      },
+      {
+        id: "r3",
+        label: "Partner review of BRD v1",
+        status: "awaiting_response",
+        tool: { kind: "web", label: "Web" },
+      },
+      {
+        id: "r4",
+        label: "Generate SOW once BRD is approved",
+        status: "pending",
+      },
+    ],
   },
   {
     id: "shs",
@@ -98,6 +183,31 @@ const ACTIVE_PROJECTS: Project[] = [
     hoursRange: "54–62h",
     hoursNote: "EST. AI HOURS",
     href: "/platform",
+    reasoning: [
+      {
+        id: "r1",
+        label: "COA mapping verified against NetSuite OneWorld",
+        status: "completed",
+        tool: { kind: "sheet", label: "COA Mapping.xlsx" },
+      },
+      {
+        id: "r2",
+        label: "Historical GL migrated (FY23 + FY24)",
+        status: "completed",
+        tool: { kind: "db", label: "NetSuite API" },
+      },
+      {
+        id: "r3",
+        label: "Opening balance reconciliation",
+        status: "in_progress",
+        tool: { kind: "sheet", label: "TB reconciliation" },
+      },
+      {
+        id: "r4",
+        label: "Cutover sign-off and go-live checklist",
+        status: "pending",
+      },
+    ],
   },
   {
     id: "hli",
@@ -113,6 +223,30 @@ const ACTIVE_PROJECTS: Project[] = [
     hoursNote: "PENDING SCAN",
     waitingOnClient: true,
     href: "/platform",
+    reasoning: [
+      {
+        id: "r1",
+        label: "Discovery call transcribed",
+        status: "completed",
+        tool: { kind: "doc", label: "Transcript" },
+      },
+      {
+        id: "r2",
+        label: "Request NetSuite sandbox credentials from client",
+        status: "awaiting_response",
+        tool: { kind: "web", label: "Web" },
+      },
+      {
+        id: "r3",
+        label: "Scan QBO Simple Start once access granted",
+        status: "pending",
+      },
+      {
+        id: "r4",
+        label: "Estimate AI hours and draft price range",
+        status: "pending",
+      },
+    ],
   },
   {
     id: "ccb",
@@ -129,6 +263,31 @@ const ACTIVE_PROJECTS: Project[] = [
     hoursNote: "EST. AI HOURS",
     waitingOnClient: true,
     href: "/platform",
+    reasoning: [
+      {
+        id: "r1",
+        label: "QBO Plus scan complete · 94,127 records",
+        status: "completed",
+        tool: { kind: "db", label: "QBO API" },
+      },
+      {
+        id: "r2",
+        label: "BRD v1 drafted and sent to partner",
+        status: "completed",
+        tool: { kind: "doc", label: "BRD v1.docx" },
+      },
+      {
+        id: "r3",
+        label: "Partner review of BRD v1",
+        status: "awaiting_response",
+        tool: { kind: "web", label: "Web" },
+      },
+      {
+        id: "r4",
+        label: "Draft SOW once sign-off received",
+        status: "pending",
+      },
+    ],
   },
 ];
 
@@ -171,21 +330,28 @@ const PAST_PROJECTS: Project[] = [
   },
 ];
 
+type NavKey = "projects" | "chat";
+
 // ————————————————————————————————————————————————————————————————
 // Page
 // ————————————————————————————————————————————————————————————————
 
 export default function PipelineDashboardPage() {
+  const [nav, setNav] = useState<NavKey>("projects");
+
   return (
-    <div className="pipeline-page min-h-screen">
-      <Dashboard />
+    <div className="pipeline-page min-h-screen flex">
+      <Sidebar nav={nav} onNav={setNav} />
+
+      <main className="flex-1 min-w-0">
+        {nav === "projects" ? <ProjectsView /> : <ChatView />}
+      </main>
 
       <style jsx global>{`
         .pipeline-page {
           background: #fafaf9;
           color: #0f0e0d;
           font-family: var(--font-sans);
-          min-height: 100vh;
           --border: rgba(15, 14, 13, 0.08);
           --input: rgba(15, 14, 13, 0.08);
           --ring: rgba(15, 14, 13, 0.2);
@@ -207,170 +373,296 @@ export default function PipelineDashboardPage() {
 }
 
 // ————————————————————————————————————————————————————————————————
-// Dashboard
+// Sidebar
 // ————————————————————————————————————————————————————————————————
 
-function Dashboard() {
+function Sidebar({
+  nav,
+  onNav,
+}: {
+  nav: NavKey;
+  onNav: (n: NavKey) => void;
+}) {
   const activeCount = ACTIVE_PROJECTS.length;
   const waitingCount = ACTIVE_PROJECTS.filter((p) => p.waitingOnClient).length;
 
   return (
-    <div className="max-w-[1280px] mx-auto px-8 pt-14 pb-40">
-      <DashboardHeader
-        activeCount={activeCount}
-        waitingCount={waitingCount}
-      />
+    <aside className="w-[224px] flex-shrink-0 border-r border-black/[0.06] bg-white/60 backdrop-blur-sm sticky top-0 h-screen flex flex-col">
+      <div className="px-5 pt-7 pb-6">
+        <div className="text-[17px] font-semibold tracking-[-0.02em] text-[#0f0e0d] leading-none">
+          Source
+        </div>
+        <div className="mt-1.5 text-[9.5px] uppercase tracking-[0.16em] text-[#0f0e0d]/40">
+          Pipeline Dashboard
+        </div>
+      </div>
 
-      <div className="mt-10 border-t border-black/[0.08]">
-        {ACTIVE_PROJECTS.map((project) => (
-          <ProjectRow key={project.id} project={project} />
+      <nav className="px-2.5 flex flex-col gap-0.5">
+        <SidebarItem
+          icon={LayoutGrid}
+          label="Projects"
+          active={nav === "projects"}
+          onClick={() => onNav("projects")}
+          meta={`${activeCount}`}
+        />
+        <SidebarItem
+          icon={MessageSquare}
+          label="Chat"
+          active={nav === "chat"}
+          onClick={() => onNav("chat")}
+        />
+      </nav>
+
+      <div className="mt-auto px-5 pb-6 pt-6 border-t border-black/[0.05]">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
+          <Activity className="w-3 h-3" strokeWidth={2} />
+          Live
+        </div>
+        <div className="mt-3 space-y-1.5">
+          <MiniStat label="Active" value={activeCount} />
+          <MiniStat label="Waiting" value={waitingCount} accent />
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function SidebarItem({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+  meta,
+}: {
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  meta?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2.5 px-2.5 h-9 rounded-md text-[13px] transition-colors ${
+        active
+          ? "bg-[#0f0e0d] text-white"
+          : "text-[#0f0e0d]/75 hover:text-[#0f0e0d] hover:bg-black/[0.04]"
+      }`}
+    >
+      <Icon className="w-4 h-4" strokeWidth={1.85} />
+      <span className="flex-1 text-left">{label}</span>
+      {meta && (
+        <span
+          className={`text-[10.5px] tabular-nums ${
+            active ? "text-white/60" : "text-[#0f0e0d]/40"
+          }`}
+        >
+          {meta}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-[11px] text-[#0f0e0d]/55">{label}</span>
+      <span
+        className={`text-[13px] font-semibold tabular-nums ${
+          accent ? "text-[#8a5a12]" : "text-[#0f0e0d]"
+        }`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ————————————————————————————————————————————————————————————————
+// Projects view
+// ————————————————————————————————————————————————————————————————
+
+function ProjectsView() {
+  const [selected, setSelected] = useState<string | null>("atl");
+
+  return (
+    <div className="max-w-[1200px] mx-auto px-10 pt-12 pb-24">
+      <header className="flex items-end justify-between">
+        <div>
+          <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-[#0f0e0d] leading-none">
+            Active Projects
+          </h1>
+          <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
+            Click any row to view live reasoning
+          </p>
+        </div>
+      </header>
+
+      <div className="mt-10 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
+        {ACTIVE_PROJECTS.map((project, i) => (
+          <ProjectRow
+            key={project.id}
+            project={project}
+            isFirst={i === 0}
+            active={selected === project.id}
+            onClick={() =>
+              setSelected((s) => (s === project.id ? null : project.id))
+            }
+          />
         ))}
       </div>
 
       <PastMigrations projects={PAST_PROJECTS} />
-
-      <div className="mt-16">
-        <ChatbotDock />
-      </div>
     </div>
   );
 }
 
 // ————————————————————————————————————————————————————————————————
-// Header
+// Project row (click to expand with Plan)
 // ————————————————————————————————————————————————————————————————
 
-function DashboardHeader({
-  activeCount,
-  waitingCount,
+function ProjectRow({
+  project,
+  isFirst,
+  active,
+  onClick,
 }: {
-  activeCount: number;
-  waitingCount: number;
+  project: Project;
+  isFirst: boolean;
+  active: boolean;
+  onClick: () => void;
 }) {
-  return (
-    <header className="flex items-end justify-between">
-      <div>
-        <h1 className="text-[34px] font-semibold tracking-[-0.02em] text-[#0f0e0d] leading-none">
-          Source
-        </h1>
-        <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
-          Pipeline Dashboard
-        </p>
-      </div>
-      <div className="flex items-end gap-10">
-        <Counter value={activeCount} label="Active" />
-        <Counter value={waitingCount} label="Waiting on Client" />
-      </div>
-    </header>
-  );
-}
-
-function Counter({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="flex flex-col items-end">
-      <div className="text-[34px] font-semibold tracking-[-0.02em] text-[#0f0e0d] leading-none tabular-nums">
-        {value}
-      </div>
-      <div className="mt-2 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
-        {label}
-      </div>
-    </div>
-  );
-}
-
-// ————————————————————————————————————————————————————————————————
-// Project row
-// ————————————————————————————————————————————————————————————————
-
-function ProjectRow({ project }: { project: Project }) {
   const waiting = project.waitingOnClient;
   const complete = project.step === project.stepsTotal;
 
   return (
-    <a
-      href={project.href ?? "#"}
-      className="relative grid grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-6 px-6 py-6 group transition-colors hover:bg-black/[0.015] border-b border-black/[0.08]"
+    <div
+      className={[
+        !isFirst && "border-t border-black/[0.06]",
+        active && "bg-[#fafaf8]",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      {/* left waiting accent */}
-      {waiting && (
-        <span
-          aria-hidden
-          className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#c78a36]"
-        />
-      )}
-
-      {/* Company + systems */}
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[15px] font-semibold text-[#0f0e0d] truncate">
-            {project.company}
-          </span>
-          <ExternalLink
-            className="w-3 h-3 text-[#0f0e0d]/30 group-hover:text-[#0f0e0d]/60 transition-colors flex-shrink-0"
-            strokeWidth={2}
+      <button
+        type="button"
+        onClick={onClick}
+        aria-expanded={active}
+        className="relative w-full text-left grid grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-6 px-6 py-5 group transition-colors hover:bg-[#fafaf8]"
+      >
+        {waiting && (
+          <span
+            aria-hidden
+            className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#c78a36]"
           />
-        </div>
-        <div className="mt-1 text-[10.5px] uppercase tracking-[0.10em] text-[#0f0e0d]/45 truncate">
-          {project.systems}
-        </div>
-      </div>
+        )}
 
-      {/* Status + step */}
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-[15px] text-[#0f0e0d] truncate">
-            {project.status}
-          </span>
-          {!complete && !waiting && (
-            <span
-              aria-hidden
-              className="w-[10px] h-[10px] rounded-full border border-[#0f0e0d]/20 flex-shrink-0"
-            />
-          )}
+        {/* Company + systems */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[14.5px] font-semibold text-[#0f0e0d] truncate">
+              {project.company}
+            </span>
+            {project.href && (
+              <a
+                href={project.href}
+                onClick={(e) => e.stopPropagation()}
+                className="text-[#0f0e0d]/30 hover:text-[#0f0e0d]/70 transition-colors flex-shrink-0"
+                aria-label="Open project"
+              >
+                <ExternalLink className="w-3 h-3" strokeWidth={2} />
+              </a>
+            )}
+          </div>
+          <div className="mt-1 text-[10px] uppercase tracking-[0.10em] text-[#0f0e0d]/45 truncate">
+            {project.systems}
+          </div>
         </div>
-        <div className="mt-1 flex items-center gap-2 text-[10.5px] uppercase tracking-[0.10em] text-[#0f0e0d]/45">
-          <span>
-            Step {project.step} of {project.stepsTotal}
-          </span>
-          {project.stalledFor && (
-            <StalledBadge
-              time={project.stalledFor}
-              reason={project.stalledReason}
-            />
-          )}
-        </div>
-      </div>
 
-      {/* Price */}
-      <div className="min-w-0">
-        <div
-          className={`text-[15px] truncate ${
-            project.priceRange === "TBD"
-              ? "text-[#0f0e0d]/55"
-              : "text-[#0f0e0d]"
+        {/* Status + step */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[14px] text-[#0f0e0d] truncate">
+              {project.status}
+            </span>
+            {!complete && !waiting && (
+              <span
+                aria-hidden
+                className="w-[10px] h-[10px] rounded-full border border-[#0f0e0d]/20 flex-shrink-0"
+              />
+            )}
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-[10px] uppercase tracking-[0.10em] text-[#0f0e0d]/45">
+            <span>
+              Step {project.step} of {project.stepsTotal}
+            </span>
+            {project.stalledFor && (
+              <StalledBadge
+                time={project.stalledFor}
+                reason={project.stalledReason}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Price */}
+        <div className="min-w-0">
+          <div
+            className={`text-[14px] truncate ${
+              project.priceRange === "TBD"
+                ? "text-[#0f0e0d]/55"
+                : "text-[#0f0e0d]"
+            }`}
+          >
+            {project.priceRange}
+          </div>
+          <div className="mt-1 text-[10px] uppercase tracking-[0.10em] text-[#0f0e0d]/45">
+            {project.priceNote}
+          </div>
+        </div>
+
+        {/* Hours */}
+        <div className="min-w-0">
+          <div
+            className={`text-[14px] truncate ${
+              project.hoursRange ? "text-[#0f0e0d]" : "text-[#0f0e0d]/35"
+            }`}
+          >
+            {project.hoursRange ?? "—"}
+          </div>
+          <div className="mt-1 text-[10px] uppercase tracking-[0.10em] text-[#0f0e0d]/45">
+            {project.hoursNote}
+          </div>
+        </div>
+
+        {/* Expand chevron */}
+        <ChevronDown
+          className={`w-4 h-4 text-[#0f0e0d]/40 transition-transform ${
+            active ? "rotate-180" : ""
           }`}
-        >
-          {project.priceRange}
-        </div>
-        <div className="mt-1 text-[10.5px] uppercase tracking-[0.10em] text-[#0f0e0d]/45">
-          {project.priceNote}
-        </div>
-      </div>
+          strokeWidth={2}
+        />
+      </button>
 
-      {/* Hours */}
-      <div className="min-w-0">
-        <div
-          className={`text-[15px] truncate ${
-            project.hoursRange ? "text-[#0f0e0d]" : "text-[#0f0e0d]/35"
-          }`}
-        >
-          {project.hoursRange ?? "—"}
+      {active && project.reasoning && (
+        <div className="px-6 pb-6 pt-1">
+          <div className="mb-2.5 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
+            <Activity className="w-3 h-3" strokeWidth={2} />
+            Live reasoning
+          </div>
+          <Plan todos={project.reasoning} />
         </div>
-        <div className="mt-1 text-[10.5px] uppercase tracking-[0.10em] text-[#0f0e0d]/45">
-          {project.hoursNote}
-        </div>
-      </div>
-    </a>
+      )}
+    </div>
   );
 }
 
@@ -402,7 +694,7 @@ function StalledBadge({
 }
 
 // ————————————————————————————————————————————————————————————————
-// Past migrations collapsible
+// Past migrations
 // ————————————————————————————————————————————————————————————————
 
 function PastMigrations({ projects }: { projects: Project[] }) {
@@ -419,9 +711,15 @@ function PastMigrations({ projects }: { projects: Project[] }) {
           Past Migrations ({projects.length})
         </button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-4 border-t border-black/[0.08]">
-        {projects.map((project) => (
-          <ProjectRow key={project.id} project={project} />
+      <CollapsibleContent className="mt-4 rounded-xl border border-black/[0.07] bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
+        {projects.map((project, i) => (
+          <ProjectRow
+            key={project.id}
+            project={project}
+            isFirst={i === 0}
+            active={false}
+            onClick={() => {}}
+          />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -429,7 +727,7 @@ function PastMigrations({ projects }: { projects: Project[] }) {
 }
 
 // ————————————————————————————————————————————————————————————————
-// Chatbot dock
+// Chat view
 // ————————————————————————————————————————————————————————————————
 
 const SUGGESTIONS = [
@@ -439,14 +737,13 @@ const SUGGESTIONS = [
   "Shopify as system of record?",
 ];
 
-function ChatbotDock() {
+function ChatView() {
   const [value, setValue] = useState("");
   const [messages, setMessages] = useState<
     { role: "user" | "assistant"; content: string }[]
   >([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -476,27 +773,42 @@ function ChatbotDock() {
     }
   };
 
+  const hero = useMemo(() => messages.length === 0, [messages.length]);
+
   return (
-    <section>
-      <div className="max-w-[820px] mx-auto">
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
-            <MessageSquare className="w-3 h-3" strokeWidth={2} />
-            Ask Source
-          </div>
-          <h2 className="mt-3 text-[22px] font-semibold tracking-[-0.015em] text-[#0f0e0d]">
-            Spin up a new engagement or ask about any project.
-          </h2>
+    <div className="max-w-[820px] mx-auto px-10 pt-12 pb-24 min-h-screen flex flex-col">
+      <header>
+        <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-[#0f0e0d] leading-none">
+          Ask Source
+        </h1>
+        <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
+          Spin up a new engagement or ask about any project
+        </p>
+      </header>
+
+      {!hero && (
+        <div className="mt-10 flex-1 space-y-3 overflow-y-auto">
+          {messages.map((m, i) => (
+            <ChatMessage key={i} role={m.role} content={m.content} />
+          ))}
         </div>
+      )}
 
-        {messages.length > 0 && (
-          <div className="mb-4 space-y-3">
-            {messages.map((m, i) => (
-              <ChatMessage key={i} role={m.role} content={m.content} />
-            ))}
+      {hero && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
+              <MessageSquare className="w-3 h-3" strokeWidth={2} />
+              Ask Source
+            </div>
+            <h2 className="mt-3 text-[22px] font-semibold tracking-[-0.015em] text-[#0f0e0d] max-w-[520px] mx-auto text-balance">
+              Spin up a new engagement or ask about any project.
+            </h2>
           </div>
-        )}
+        </div>
+      )}
 
+      <div className="mt-6">
         <div className="bg-white rounded-2xl border border-black/[0.08] shadow-[0_1px_2px_rgba(15,14,13,0.04)] p-1.5">
           <textarea
             ref={textareaRef}
@@ -526,7 +838,7 @@ function ChatbotDock() {
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           {SUGGESTIONS.map((s) => (
             <button
               key={s}
@@ -539,7 +851,7 @@ function ChatbotDock() {
           ))}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -588,4 +900,3 @@ function ChatMessage({
     </div>
   );
 }
-
