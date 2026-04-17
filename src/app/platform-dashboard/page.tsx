@@ -1667,16 +1667,9 @@ function DiscoveryTracker({ projects }: { projects: Project[] }) {
 
       {/* Unified call timeline across all discovery projects — gives an
           at-a-glance view of when stakeholder calls have been collected,
-          cadence, and coverage gaps. Sits above the per-project rows. */}
+          cadence, and coverage gaps. This single visual is sufficient and
+          eliminates redundancy from the per-project detail rows below. */}
       <DiscoveryTimeline projects={projects} />
-
-      <ul className="divide-y divide-black/[0.05] border-t border-black/[0.05]">
-        {projects.map((p) => (
-          <li key={p.id} className="px-4 py-3.5">
-            <DiscoveryRow project={p} />
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
