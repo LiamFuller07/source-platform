@@ -10,7 +10,6 @@ import {
   Landmark,
   Sparkles,
   ArrowRight,
-  Lock,
   MessageSquare,
 } from "lucide-react";
 import {
@@ -23,9 +22,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 
 // ————————————————————————————————————————————————————————————————
 // Data
@@ -180,15 +176,9 @@ const PAST_PROJECTS: Project[] = [
 // ————————————————————————————————————————————————————————————————
 
 export default function PipelineDashboardPage() {
-  const [authed, setAuthed] = useState(false);
-
   return (
     <div className="pipeline-page min-h-screen">
-      {authed ? (
-        <Dashboard onSignOut={() => setAuthed(false)} />
-      ) : (
-        <SignInGate onAuth={() => setAuthed(true)} />
-      )}
+      <Dashboard />
 
       <style jsx global>{`
         .pipeline-page {
@@ -217,109 +207,10 @@ export default function PipelineDashboardPage() {
 }
 
 // ————————————————————————————————————————————————————————————————
-// Sign-In Gate
-// ————————————————————————————————————————————————————————————————
-
-function SignInGate({ onAuth }: { onAuth: () => void }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) return;
-    setBusy(true);
-    setTimeout(() => {
-      setBusy(false);
-      onAuth();
-    }, 350);
-  };
-
-  return (
-    <section className="min-h-screen flex items-center justify-center px-6">
-      <div className="w-full max-w-[380px]">
-        <div className="flex flex-col items-center mb-10">
-          <div className="w-10 h-10 rounded-xl bg-[#0f0e0d] text-white flex items-center justify-center mb-5">
-            <Lock className="w-4 h-4" strokeWidth={2} />
-          </div>
-          <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-[#0f0e0d]">
-            Source
-          </h1>
-          <p className="mt-1.5 text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/45">
-            Pipeline Dashboard
-          </p>
-        </div>
-
-        <form
-          onSubmit={submit}
-          className="bg-white rounded-xl border border-black/[0.07] shadow-[0_1px_2px_rgba(15,14,13,0.04)] p-6 space-y-4"
-        >
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="email"
-              className="text-[11px] uppercase tracking-[0.12em] text-[#0f0e0d]/50 font-normal"
-            >
-              Work Email
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@partner.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="h-10 text-[13px] bg-[#fafaf8] border-black/[0.08] focus-visible:ring-[#0f0e0d]/15"
-              autoComplete="email"
-              required
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="password"
-              className="text-[11px] uppercase tracking-[0.12em] text-[#0f0e0d]/50 font-normal"
-            >
-              Password
-            </Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="h-10 text-[13px] bg-[#fafaf8] border-black/[0.08] focus-visible:ring-[#0f0e0d]/15"
-              autoComplete="current-password"
-              required
-            />
-          </div>
-          <Button
-            type="submit"
-            disabled={busy}
-            className="w-full h-10 bg-[#0f0e0d] hover:bg-[#0f0e0d]/90 text-white text-[13px] font-medium rounded-md"
-          >
-            {busy ? "Signing in…" : "Sign in"}
-          </Button>
-          <div className="pt-1 text-center">
-            <a
-              href="#"
-              className="text-[11px] text-[#0f0e0d]/50 hover:text-[#0f0e0d] transition-colors"
-            >
-              Can&apos;t sign in?
-            </a>
-          </div>
-        </form>
-
-        <p className="mt-6 text-center text-[10.5px] text-[#0f0e0d]/35 uppercase tracking-[0.12em]">
-          Internal · Partner Access
-        </p>
-      </div>
-    </section>
-  );
-}
-
-// ————————————————————————————————————————————————————————————————
 // Dashboard
 // ————————————————————————————————————————————————————————————————
 
-function Dashboard({ onSignOut }: { onSignOut: () => void }) {
+function Dashboard() {
   const activeCount = ACTIVE_PROJECTS.length;
   const waitingCount = ACTIVE_PROJECTS.filter((p) => p.waitingOnClient).length;
 
@@ -328,7 +219,6 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
       <DashboardHeader
         activeCount={activeCount}
         waitingCount={waitingCount}
-        onSignOut={onSignOut}
       />
 
       <div className="mt-10 border-t border-black/[0.08]">
@@ -353,11 +243,9 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
 function DashboardHeader({
   activeCount,
   waitingCount,
-  onSignOut,
 }: {
   activeCount: number;
   waitingCount: number;
-  onSignOut: () => void;
 }) {
   return (
     <header className="flex items-end justify-between">
@@ -372,12 +260,6 @@ function DashboardHeader({
       <div className="flex items-end gap-10">
         <Counter value={activeCount} label="Active" />
         <Counter value={waitingCount} label="Waiting on Client" />
-        <button
-          onClick={onSignOut}
-          className="text-[11px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 hover:text-[#0f0e0d]/70 transition-colors pb-[2px]"
-        >
-          Sign out
-        </button>
       </div>
     </header>
   );
