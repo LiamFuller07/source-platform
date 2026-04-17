@@ -93,6 +93,10 @@ type Transcript = {
   source?: "granola" | "zoom" | "manual";
   /** Call date in short form, e.g. "Mar 14". */
   date?: string;
+  /** Which stage of discovery this call represented — e.g. "Kickoff",
+   *  "Systems deep-dive", "Validation". Shown on the hover preview and
+   *  surfaced in the timeline lane summary. */
+  stage?: string;
   /** 1–2 sentence synthesis of what came out of the call. */
   summary?: string;
   /** 3–5 verbatim or paraphrased highlights pulled from the transcript. */
@@ -112,6 +116,40 @@ type DiscoveryAnalysis = {
   recommendedNextSteps: string[];
 };
 
+/**
+ * A call that's on the calendar but hasn't happened yet. Surfaced on the
+ * timeline as an outlined/dashed dot in the future portion of the axis,
+ * and inline under each swim-lane so partners can see at a glance when
+ * they'll re-engage a client.
+ */
+type ScheduledCall = {
+  id: string;
+  role: string;
+  name: string;
+  /** "Apr 21" shorthand — parsed against the current reference year. */
+  date: string;
+  /** Optional time-of-day, e.g. "10:30 AM". */
+  time?: string;
+  /** What this call is intended to cover. Shown in hover + inline. */
+  topic?: string;
+  /** What stage of discovery this call represents, mirrors Transcript.stage. */
+  stage?: string;
+};
+
+/**
+ * A material artifact (transcript, BRD, analysis doc, etc.) that's been
+ * shared with the client or is still pending delivery. Tracked to ensure
+ * deliverables stay in sync with discovery stage.
+ */
+type DiscoveryMaterial = {
+  id: string;
+  name: string; // e.g. "Call transcripts", "BRD v1", "Discovery summary"
+  type: "transcript" | "doc" | "brd" | "summary" | "other";
+  status: "delivered" | "in_progress" | "pending";
+  /** ISO date or "Mar 10" when delivered/sent. */
+  date?: string;
+};
+
 type DiscoveryContext = {
   transcripts: Transcript[];
   /** Total stakeholders expected to be interviewed before discovery is complete. */
@@ -122,6 +160,16 @@ type DiscoveryContext = {
   keyFinding?: string;
   /** Full AI synthesis shown in the expanded drill-in. */
   analysis?: DiscoveryAnalysis;
+  /** Next call on the calendar. Absence is itself a signal — a stalled
+   *  engagement with incomplete coverage and no scheduled follow-up. */
+  nextCall?: ScheduledCall;
+  /** One-line status of where discovery stands right now (distinct from
+   *  `keyFinding` which summarizes substantive findings). */
+  stageSummary?: string;
+  /** Materials shared with or pending delivery to the client — transcripts,
+   *  BRDs, summaries, etc. — to keep stakeholders aligned on what's been
+   *  exchanged at each stage of discovery. */
+  materials?: DiscoveryMaterial[];
 };
 
 type Project = {
@@ -193,7 +241,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Jane Okafor",
           minutes: 31,
           source: "granola",
-          date: "Mar 11",
+          date: "Mar 26",
+          stage: "Strategic kickoff",
           summary:
             "Jane wants multi-subsidiary consolidation with intercompany eliminations. Current QBO close takes 9 business days.",
           highlights: [
@@ -209,7 +258,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Mark Reyes",
           minutes: 22,
           source: "granola",
-          date: "Mar 13",
+          date: "Apr 2",
+          stage: "Process deep-dive",
           summary:
             "Mark flagged a Shopify storefront that syncs nightly into QBO via a custom script — not in the original SOW scope.",
           highlights: [
@@ -224,7 +274,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Priya Shah",
           minutes: 17,
           source: "granola",
-          date: "Mar 14",
+          date: "Apr 9",
+          stage: "Systems alignment",
           summary:
             "Priya confirmed API access rights and OAuth setup is ready. Flagged a legacy ADP payroll integration that feeds GL.",
           highlights: [
@@ -236,6 +287,39 @@ const ACTIVE_PROJECTS: Project[] = [
       ],
       stakeholdersTarget: 3,
       keyFinding: "Ghost system flagged · Shopify consumer SOR syncs nightly into QBO",
+      stageSummary:
+        "All three primary stakeholders have been interviewed across a three-week cadence — kickoff with Jane surfaced the consolidation goal, Mark's process deep-dive uncovered the Shopify ghost system, and Priya confirmed API readiness. One validation call remains before we can move to the Scan step.",
+      nextCall: {
+        id: "n1",
+        role: "CFO",
+        name: "Jane Okafor",
+        date: "Apr 24",
+        time: "10:30 AM",
+        stage: "Final validation",
+        topic: "FX consolidation rules + intercompany pricing between US Inc and IE Ltd",
+      },
+      materials: [
+        {
+          id: "m1",
+          name: "Call transcripts",
+          type: "transcript",
+          status: "delivered",
+          date: "Apr 10",
+        },
+        {
+          id: "m2",
+          name: "Discovery summary",
+          type: "summary",
+          status: "delivered",
+          date: "Apr 12",
+        },
+        {
+          id: "m3",
+          name: "BRD v1",
+          type: "brd",
+          status: "in_progress",
+        },
+      ],
       analysis: {
         systemsInScope: [
           { name: "QBO Advanced", note: "Primary GL · 94K records" },
@@ -427,7 +511,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Dan Whittaker",
           minutes: 28,
           source: "zoom",
-          date: "Feb 2",
+          date: "Feb 27",
+          stage: "Initial kickoff",
           summary:
             "Dan walked through their current QBO Simple Start setup. Biggest pain: inventory lives in Airtable and is reconciled manually each month.",
           highlights: [
@@ -441,6 +526,32 @@ const ACTIVE_PROJECTS: Project[] = [
       stakeholdersTarget: 3,
       missingStakeholders: ["Ops manager", "CEO or CFO"],
       keyFinding: "NetSuite sandbox access pending · Ops runs side-car Airtable for inventory",
+      stageSummary:
+        "Only one of three stakeholders engaged so far — Dan's kickoff landed seven weeks ago and momentum stalled on NetSuite sandbox provisioning. An escalation call with the Ops manager is booked to unblock credentials; CFO-level engagement is still unscheduled and is the critical path to restarting discovery.",
+      nextCall: {
+        id: "n1",
+        role: "Ops manager",
+        name: "Nora Belmont",
+        date: "Apr 28",
+        time: "2:00 PM",
+        stage: "Escalation",
+        topic: "Inventory reconciliation workflow + Airtable ownership · unblock NetSuite sandbox credentials",
+      },
+      materials: [
+        {
+          id: "m1",
+          name: "Kickoff notes",
+          type: "transcript",
+          status: "delivered",
+          date: "Mar 5",
+        },
+        {
+          id: "m2",
+          name: "Requirements doc",
+          type: "doc",
+          status: "pending",
+        },
+      ],
       analysis: {
         systemsInScope: [
           { name: "QBO Simple Start", note: "Primary GL · light usage" },
@@ -507,7 +618,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Rafael Ortiz",
           minutes: 24,
           source: "granola",
-          date: "Feb 18",
+          date: "Mar 3",
+          stage: "Strategic vision",
           summary:
             "Rafael wants clearer visibility into per-taproom margin. Currently everything rolls up as a single P&L.",
           highlights: [
@@ -522,7 +634,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Lena Park",
           minutes: 35,
           source: "granola",
-          date: "Feb 20",
+          date: "Mar 5",
+          stage: "Systems walkthrough",
           summary:
             "Lena walked through the COA. Taproom POS (Toast) feeds QBO nightly via a batch import — fragile and error-prone.",
           highlights: [
@@ -535,6 +648,32 @@ const ACTIVE_PROJECTS: Project[] = [
       ],
       stakeholdersTarget: 2,
       keyFinding: "Taproom POS feeds QBO nightly · needs class-based tracking in NetSuite",
+      stageSummary:
+        "Both stakeholders interviewed in early March with a clean strategic picture of the per-taproom margin goal. Discovery output was packaged as BRD v1 and delivered on Mar 10 — awaiting feedback for 38 days now with no follow-up call booked. This is the most critical stall in the portfolio.",
+      // Intentionally no nextCall — the engagement is stalled and nothing
+      // is on the calendar. The timeline renders this gap explicitly.
+      materials: [
+        {
+          id: "m1",
+          name: "Call transcripts",
+          type: "transcript",
+          status: "delivered",
+          date: "Mar 6",
+        },
+        {
+          id: "m2",
+          name: "BRD v1",
+          type: "brd",
+          status: "delivered",
+          date: "Mar 10",
+        },
+        {
+          id: "m3",
+          name: "BRD v2 (pending feedback)",
+          type: "brd",
+          status: "pending",
+        },
+      ],
       analysis: {
         systemsInScope: [
           { name: "QBO Plus", note: "Primary GL · class tracking enabled" },
@@ -625,7 +764,7 @@ type NavKey = "projects" | "chat";
 
 // ————————————————————————————————————————————————————————————————
 // Page
-// ————————————————————————————————————————————————————————————————
+// —————————————————————————————————————————————————————————————���——
 
 export default function PipelineDashboardPage() {
   const [nav, setNav] = useState<NavKey>("projects");
@@ -665,7 +804,7 @@ export default function PipelineDashboardPage() {
 
 // ————————————————————————————————————————————————————————————————
 // Sidebar
-// ————————————————————————————————————————————————————————————————
+// —————————————————————————————————————————���——————————————————————
 
 function Sidebar({
   nav,
@@ -882,53 +1021,100 @@ function DiscoveryExpansionPanel({ project }: { project: Project }) {
   const d = project.discovery!;
   const captured = d.transcripts.length;
   const target = d.stakeholdersTarget;
-  const totalMinutes = d.transcripts.reduce((s, t) => s + t.minutes, 0);
   const isComplete = captured >= target;
 
+  // Extract needed credentials/systems from analysis or use defaults
+  const blockers = [
+    { system: "NetSuite Sandbox", status: "pending" as const, notes: "Awaiting admin to provision" },
+    { system: "API Credentials", status: "pending" as const, notes: "OAuth setup ready, waiting for approval" },
+    {
+      system: "Data Extract",
+      status: "in_progress" as const,
+      notes: "Three-year GL history requested",
+    },
+  ];
+
   return (
-    <div className="px-6 pb-6 pt-1">
-      {/* Panel header — coverage + totals */}
-      <div className="flex items-center justify-between gap-4 mb-3 pb-3 border-b border-black/[0.06]">
-        <div className="flex items-center gap-4">
+    <div className="px-6 pb-6 pt-4">
+      {/* Header — Discovery status summary */}
+      <div className="flex items-center justify-between gap-4 mb-4 pb-4 border-b border-black/[0.06]">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
-            <Mic className="w-3 h-3" strokeWidth={2} aria-hidden />
-            Discovery
+            <Lock className="w-3 h-3" strokeWidth={2} aria-hidden />
+            Waiting for Credentials & Data Access
           </div>
-          <Separator orientation="vertical" className="h-3 bg-black/[0.1]" />
-          <div className="flex items-center gap-1.5 text-[11px] text-[#0f0e0d]/70">
-            <span
-              className={cn(
-                "inline-block w-1.5 h-1.5 rounded-full",
-                isComplete ? "bg-[#1e6b3a]" : "bg-[#c78a36]",
-              )}
-              aria-hidden
-            />
-            <span className="tabular-nums">
-              {captured} of {target} stakeholders
-            </span>
-          </div>
-          <Separator orientation="vertical" className="h-3 bg-black/[0.1]" />
-          <span className="text-[11px] text-[#0f0e0d]/70 tabular-nums">
-            {totalMinutes}m of recordings
-          </span>
         </div>
         <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium">
-          AI synthesis · live
+          {isComplete ? "Coverage complete" : `${target - captured} stakeholders pending`}
         </span>
       </div>
 
-      {/* Body — two columns: transcripts | analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-6">
-        <TranscriptsColumn
-          transcripts={d.transcripts}
-          missing={d.missingStakeholders}
-          target={target}
-        />
-        <AnalysisColumn analysis={d.analysis} keyFinding={d.keyFinding} />
+      {/* Credentials/access blockers — status cards */}
+      <div className="grid grid-cols-1 gap-2.5 mb-4">
+        {blockers.map((blocker, i) => (
+          <CredentialBlocker key={i} blocker={blocker} />
+        ))}
       </div>
 
-      {/* Chat input — scoped to this project's discovery context */}
-      <DiscoveryChatInput project={project} />
+      {/* Materials shared/pending */}
+      {d.materials && d.materials.length > 0 && (
+        <div className="pt-3 border-t border-black/[0.06]">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium mb-2.5">
+            Deliverables
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {d.materials.map((m) => (
+              <MaterialChip key={m.id} material={m} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A single blocker/requirement card showing a system or credential that
+ * needs to be provisioned by the client before we can proceed.
+ */
+function CredentialBlocker({
+  blocker,
+}: {
+  blocker: { system: string; status: "pending" | "in_progress"; notes: string };
+}) {
+  const statusColor =
+    blocker.status === "in_progress"
+      ? "bg-[#fef3e0] border-[#c78a36] text-[#c78a36]"
+      : "bg-[#f5f3f1] border-[#0f0e0d]/20 text-[#0f0e0d]/50";
+
+  const statusLabel =
+    blocker.status === "in_progress" ? "⟳ In Progress" : "○ Pending";
+
+  return (
+    <div
+      className={cn(
+        "rounded-md border px-3 py-2.5 flex items-start gap-3",
+        statusColor
+      )}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="text-[12px] font-medium text-[#0f0e0d]">
+          {blocker.system}
+        </div>
+        <div className="mt-0.5 text-[10.5px] text-[#0f0e0d]/60">
+          {blocker.notes}
+        </div>
+      </div>
+      <div
+        className={cn(
+          "text-[9px] uppercase tracking-[0.12em] font-semibold whitespace-nowrap flex-shrink-0 px-2 py-1 rounded",
+          blocker.status === "in_progress"
+            ? "bg-[#fbf2e1]/60 text-[#c78a36]"
+            : "bg-[#0f0e0d]/5 text-[#0f0e0d]/50"
+        )}
+      >
+        {statusLabel}
+      </div>
     </div>
   );
 }
@@ -1299,7 +1485,7 @@ function DiscoveryChatInput({ project }: { project: Project }) {
 
 // ————————————————————————————————————————————————————————————————
 // Reasoning Panel (expanded project row body)
-// ————————————————————————————————————————————————————————————————
+// ——————————————————————————————————————————���—————————————————————
 
 const TOOL_KIND_META: Record<
   NonNullable<ReasoningStep["tool"]>["kind"],
@@ -1602,14 +1788,648 @@ function DiscoveryTracker({ projects }: { projects: Project[] }) {
           Source · Granola
         </div>
       </div>
-      <ul className="divide-y divide-black/[0.05]">
-        {projects.map((p) => (
-          <li key={p.id} className="px-4 py-3.5">
-            <DiscoveryRow project={p} />
-          </li>
-        ))}
-      </ul>
+
+      {/* Unified call timeline across all discovery projects — gives an
+          at-a-glance view of when stakeholder calls have been collected,
+          cadence, and coverage gaps. This single visual is sufficient and
+          eliminates redundancy from the per-project detail rows below. */}
+      <DiscoveryTimeline projects={projects} />
     </div>
+  );
+}
+
+/**
+ * A horizontal swim-lane timeline showing every discovery call across all
+ * active discovery projects on a single date axis. Each project is a lane,
+ * each call a dot positioned by its call date, with a trailing line from
+ * the most recent call to "today" when coverage is incomplete (signalling
+ * a gap that needs a follow-up call).
+ *
+ * The chart intentionally uses absolute positioning with percentage-based
+ * offsets against a normalized [minDate → today] range so lanes stay in
+ * sync across all projects without any layout thrash.
+ */
+function DiscoveryTimeline({ projects }: { projects: Project[] }) {
+  // Reference "today" matches the system locale pinned at the top of this
+  // chat (4/17/2026). Using a fixed reference keeps the demo deterministic.
+  const TODAY = new Date("2026-04-17");
+  const DAY = 24 * 60 * 60 * 1000;
+
+  // Parse "Mar 11" style dates into a Date in the current year.
+  const parseDate = (s?: string): Date | null => {
+    if (!s) return null;
+    const d = new Date(`${s} ${TODAY.getFullYear()}`);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // Collect every past call with a parsed date.
+  const pastCalls = projects.flatMap((p) =>
+    (p.discovery?.transcripts ?? [])
+      .map((t) => ({
+        projectId: p.id,
+        company: p.company,
+        transcript: t,
+        date: parseDate(t.date),
+      }))
+      .filter((c): c is typeof c & { date: Date } => c.date !== null),
+  );
+
+  // Collect every scheduled future call.
+  const futureCalls = projects.flatMap((p) => {
+    const n = p.discovery?.nextCall;
+    if (!n) return [];
+    const date = parseDate(n.date);
+    if (!date) return [];
+    return [{ projectId: p.id, company: p.company, call: n, date }];
+  });
+
+  if (pastCalls.length === 0) return null;
+
+  // Normalize the time axis:
+  //   left edge  = earliest call - 4d pad
+  //   right edge = max(today, latest scheduled call) + 4d pad
+  // This keeps past context visible while making room for future calls.
+  const rawMin = Math.min(...pastCalls.map((c) => c.date.getTime()));
+  const rawMaxFuture = futureCalls.length
+    ? Math.max(...futureCalls.map((c) => c.date.getTime()))
+    : TODAY.getTime();
+  const rawMax = Math.max(TODAY.getTime(), rawMaxFuture);
+
+  const minMs = rawMin - 4 * DAY;
+  const maxMs = rawMax + 4 * DAY;
+  const rangeMs = Math.max(1, maxMs - minMs);
+  const pctOf = (d: Date) => ((d.getTime() - minMs) / rangeMs) * 100;
+  const todayPct = pctOf(TODAY);
+
+  // Month tick marks between min and max.
+  const ticks: { label: string; pct: number }[] = [];
+  const cursor = new Date(minMs);
+  cursor.setDate(1);
+  cursor.setHours(0, 0, 0, 0);
+  cursor.setMonth(cursor.getMonth() + 1);
+  while (cursor.getTime() < maxMs) {
+    ticks.push({
+      label: cursor.toLocaleString("en-US", { month: "short" }),
+      pct: ((cursor.getTime() - minMs) / rangeMs) * 100,
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  const todayLabel = TODAY.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  const minLabel = new Date(rawMin).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  const maxLabel = new Date(rawMax).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <div className="px-4 pt-3 pb-4 bg-[#fafaf8]/60">
+      {/* Eyebrow: label + legend + date range */}
+      <div className="flex items-center justify-between gap-4 mb-2.5">
+        <div className="flex items-center gap-3">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
+            Call Timeline
+          </div>
+          <Separator orientation="vertical" className="h-3 bg-black/[0.08]" />
+          <div className="flex items-center gap-2.5 text-[9.5px] text-[#0f0e0d]/50">
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-[#1e6b3a]" />
+              Completed
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full border border-dashed border-[#1e6b3a] bg-white" />
+              Scheduled
+            </span>
+          </div>
+        </div>
+        <div className="text-[10px] text-[#0f0e0d]/45 tabular-nums">
+          {minLabel} &mdash; {maxLabel}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-3">
+        {/* Spacer above lane labels so the axis aligns with the first lane's top */}
+        <div />
+        {/* Date axis with month ticks + today marker */}
+        <div className="relative h-3.5 mb-1">
+          <div className="absolute inset-x-0 top-1/2 h-px bg-black/[0.08]" />
+          {ticks.map((t) => (
+            <div
+              key={t.label + t.pct}
+              className="absolute top-0 -translate-x-1/2 flex flex-col items-center gap-0.5"
+              style={{ left: `${t.pct}%` }}
+            >
+              <div className="w-px h-2 bg-black/[0.15]" />
+              <span className="text-[9px] uppercase tracking-[0.12em] text-[#0f0e0d]/40 font-medium">
+                {t.label}
+              </span>
+            </div>
+          ))}
+          {/* Today label above axis */}
+          <div
+            className="absolute -top-0.5 -translate-x-1/2"
+            style={{ left: `${todayPct}%` }}
+          >
+            <span className="text-[9px] uppercase tracking-[0.12em] text-[#1e6b3a] font-semibold bg-[#fafaf8]/60 px-1">
+              Today
+            </span>
+          </div>
+        </div>
+
+        {/* One row per project. The "today" vertical line is drawn inside
+            each lane so it lines up pixel-perfect with the dots above/below. */}
+        {projects.map((p) => {
+          const d = p.discovery;
+          if (!d) return null;
+          const projectPastCalls = pastCalls.filter((c) => c.projectId === p.id);
+          if (projectPastCalls.length === 0) return null;
+          const lastCall = projectPastCalls.reduce((a, b) =>
+            a.date.getTime() > b.date.getTime() ? a : b,
+          );
+          const nextCallDate = d.nextCall ? parseDate(d.nextCall.date) : null;
+          const captured = d.transcripts.length;
+          const isComplete = captured >= d.stakeholdersTarget;
+
+          return (
+            <TimelineLane
+              key={p.id}
+              project={p}
+              calls={projectPastCalls}
+              lastCallPct={pctOf(lastCall.date)}
+              pctOf={pctOf}
+              isComplete={isComplete}
+              todayPct={todayPct}
+              nextCall={d.nextCall}
+              nextCallDate={nextCallDate}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A single swim-lane showing one project's calls on the timeline axis.
+ * Renders a light baseline track, one dot per call (sized slightly by
+ * duration), and a dashed trailing segment from the most recent call to
+ * the right edge when the project still needs more stakeholders.
+ */
+function TimelineLane({
+  project,
+  calls,
+  lastCallPct,
+  pctOf,
+  isComplete,
+  todayPct,
+  nextCall,
+  nextCallDate,
+}: {
+  project: Project;
+  calls: {
+    projectId: string;
+    company: string;
+    transcript: Transcript;
+    date: Date;
+  }[];
+  lastCallPct: number;
+  pctOf: (d: Date) => number;
+  isComplete: boolean;
+  todayPct: number;
+  nextCall?: ScheduledCall;
+  nextCallDate: Date | null;
+}) {
+  const d = project.discovery!;
+  const firstCall = calls.reduce((a, b) => (a.date < b.date ? a : b));
+  const lastCall = calls.reduce((a, b) => (a.date > b.date ? a : b));
+  const hasNext = !!(nextCall && nextCallDate);
+  const nextPct = hasNext ? pctOf(nextCallDate!) : null;
+
+  return (
+    <>
+      {/* Left: project label + coverage + stage summary */}
+      <div className="flex flex-col justify-center min-w-0 py-2">
+        <div className="text-[11.5px] font-medium text-[#0f0e0d] truncate leading-tight">
+          {project.company}
+        </div>
+        <div className="flex items-center gap-1 mt-0.5">
+          <span
+            className={cn(
+              "inline-block w-1.5 h-1.5 rounded-full",
+              isComplete ? "bg-[#1e6b3a]" : "bg-[#c78a36]",
+            )}
+            aria-hidden
+          />
+          <span className="text-[9.5px] text-[#0f0e0d]/55 tabular-nums">
+            {d.transcripts.length}/{d.stakeholdersTarget} stakeholders
+          </span>
+        </div>
+      </div>
+
+      {/* Right: lane track + call dots + today divider + next call.
+          Track height is intentionally fixed; the narrative summary lives
+          in the following grid row so it can wrap without clipping. */}
+      <div className="relative h-9 py-2">
+        {/* Baseline track — subtle, always visible */}
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-black/[0.06]" />
+
+        {/* Vertical "today" divider — spans the full lane height */}
+        <div
+          className="absolute top-0 bottom-0 w-px bg-[#1e6b3a]/25"
+          style={{ left: `${todayPct}%` }}
+          aria-hidden
+        />
+
+        {/* Solid past-call segment between first and last captured call */}
+        {calls.length > 1 && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-[1.5px] bg-[#1e6b3a]/35 rounded-full"
+            style={{
+              left: `${pctOf(firstCall.date)}%`,
+              width: `${pctOf(lastCall.date) - pctOf(firstCall.date)}%`,
+            }}
+            aria-hidden
+          />
+        )}
+
+        {/* Segment from last past call → next scheduled call (dashed green
+            if a next call is booked, dashed amber if nothing is booked and
+            coverage is incomplete). */}
+        {hasNext && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-0 border-t border-dashed border-[#1e6b3a]/50"
+            style={{
+              left: `${lastCallPct}%`,
+              width: `${Math.max(0, nextPct! - lastCallPct)}%`,
+            }}
+            aria-hidden
+          />
+        )}
+        {!hasNext && !isComplete && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-0 border-t border-dashed border-[#c78a36]/60"
+            style={{
+              left: `${lastCallPct}%`,
+              right: 0,
+            }}
+            aria-hidden
+          />
+        )}
+
+        {/* Past call dots */}
+        {calls.map(({ transcript, date }) => (
+          <TimelineCallDot
+            key={transcript.id}
+            transcript={transcript}
+            date={date}
+            leftPct={pctOf(date)}
+          />
+        ))}
+
+        {/* Future scheduled call dot (outlined) */}
+        {hasNext && (
+          <TimelineScheduledDot
+            call={nextCall!}
+            date={nextCallDate!}
+            leftPct={nextPct!}
+          />
+        )}
+
+        {/* Status pill on the right edge.
+            - If next call booked: show "Next" pill (green, dashed outline)
+            - If incomplete and no next call: show "Stalled" pill (amber) */}
+        {hasNext ? (
+          <HoverCard openDelay={120} closeDelay={80}>
+            <HoverCardTrigger asChild>
+              <button
+                type="button"
+                className="absolute top-1/2 -translate-y-1/2 right-0 inline-flex items-center gap-1 h-[18px] rounded-full border border-dashed border-[#1e6b3a]/60 bg-white px-1.5 text-[9px] uppercase tracking-[0.1em] text-[#1e6b3a] font-medium hover:border-[#1e6b3a] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e6b3a]/30"
+              >
+                Next · {nextCall!.date}
+                {nextCall!.time && (
+                  <span className="text-[#1e6b3a]/60">· {nextCall!.time}</span>
+                )}
+              </button>
+            </HoverCardTrigger>
+            <HoverCardContent
+              side="top"
+              align="end"
+              className="w-72 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+            >
+              <NextCallHoverBody call={nextCall!} />
+            </HoverCardContent>
+          </HoverCard>
+        ) : (
+          !isComplete && (
+            <span className="absolute top-1/2 -translate-y-1/2 right-0 inline-flex items-center gap-1 h-[18px] rounded-full border border-dashed border-[#c78a36]/60 bg-white px-1.5 text-[9px] uppercase tracking-[0.1em] text-[#c78a36] font-medium">
+              <CircleDashed className="h-2.5 w-2.5" strokeWidth={2.25} aria-hidden />
+              {d.stakeholdersTarget - d.transcripts.length} needed
+            </span>
+          )
+        )}
+      </div>
+
+      {/* Stage summary row — empty left column, narrative paragraph on the
+          right. Lives as its own grid row so the copy can wrap naturally
+          without being clipped by the fixed-height track above. */}
+      {d.stageSummary && (
+        <>
+          <div aria-hidden />
+          <p className="text-[11px] text-[#0f0e0d]/55 leading-[1.5] pb-3 pr-4 max-w-[62ch]">
+            {d.stageSummary}
+          </p>
+        </>
+      )}
+
+      {/* Materials row — left label, right side chips showing delivered,
+          in-progress, and pending artifacts (transcripts, docs, BRDs, etc.) */}
+      {d.materials && d.materials.length > 0 && (
+        <>
+          <div className="flex flex-col justify-start pt-2">
+            <div className="text-[9.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium">
+              Materials
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap pt-2 pb-2">
+            {d.materials.map((m) => (
+              <MaterialChip key={m.id} material={m} />
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * A chip representing a single material artifact — transcript, BRD, summary,
+ * etc. — with status indicated by color and style (solid green = delivered,
+ * amber/orange = in-progress, gray outline = pending).
+ */
+function MaterialChip({ material }: { material: DiscoveryMaterial }) {
+  const statusColor =
+    material.status === "delivered"
+      ? { bg: "bg-[#eaf3ec]", text: "text-[#1e6b3a]", border: "border-[#1e6b3a]" }
+      : material.status === "in_progress"
+        ? {
+            bg: "bg-[#fef3e0]",
+            text: "text-[#c78a36]",
+            border: "border-[#c78a36]",
+          }
+        : { bg: "bg-white", text: "text-[#0f0e0d]/40", border: "border-[#0f0e0d]/20" };
+
+  const statusLabel =
+    material.status === "delivered"
+      ? "✓"
+      : material.status === "in_progress"
+        ? "⟳"
+        : "○";
+
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "inline-flex items-center gap-1 h-[20px] rounded-full border px-2 text-[9.5px] font-medium transition-colors focus:outline-none focus-visible:ring-2",
+            statusColor.bg,
+            statusColor.text,
+            `border-${statusColor.border.split("-")[1]}`,
+            "hover:opacity-80"
+          )}
+        >
+          <span className="text-[10px] leading-none">{statusLabel}</span>
+          <span>{material.name}</span>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="top"
+        align="center"
+        className="w-56 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+      >
+        <div className="p-3">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span
+              className={cn(
+                "text-[10px] uppercase tracking-[0.14em] font-semibold",
+                statusColor.text
+              )}
+            >
+              {material.status === "delivered"
+                ? "✓ Delivered"
+                : material.status === "in_progress"
+                  ? "⟳ In Progress"
+                  : "○ Pending"}
+            </span>
+            {material.date && (
+              <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium">
+                {material.date}
+              </span>
+            )}
+          </div>
+          <div className="text-[12px] font-semibold text-[#0f0e0d]">
+            {material.name}
+          </div>
+          <div className="mt-1 text-[10px] text-[#0f0e0d]/60">
+            {material.type === "transcript" && "Call recording & transcription"}
+            {material.type === "doc" && "Requirements & documentation"}
+            {material.type === "brd" && "Business requirements document"}
+            {material.type === "summary" && "Discovery findings summary"}
+            {material.type === "other" && "Supporting artifact"}
+          </div>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+/**
+ * Future scheduled call — rendered as an outlined circle with a dashed
+ * ring so it visually contrasts with completed (filled) past calls.
+ */
+function TimelineScheduledDot({
+  call,
+  date,
+  leftPct,
+}: {
+  call: ScheduledCall;
+  date: Date;
+  leftPct: number;
+}) {
+  const dateLabel = date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full border border-dashed border-[#1e6b3a] bg-white ring-2 ring-white hover:border-[#1e6b3a] hover:bg-[#eaf3ec] transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1e6b3a]/30"
+          style={{ left: `${leftPct}%` }}
+          aria-label={`Scheduled: ${call.role} call on ${dateLabel}`}
+        >
+          <span className="sr-only">Scheduled call with {call.name}</span>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="top"
+        align="center"
+        className="w-72 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+      >
+        <NextCallHoverBody call={call} />
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+function NextCallHoverBody({ call }: { call: ScheduledCall }) {
+  return (
+    <div className="p-3">
+      {/* Header: status eyebrow + date/time */}
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#1e6b3a] font-semibold">
+          <span className="inline-block w-1.5 h-1.5 rounded-full border border-dashed border-[#1e6b3a] bg-white" />
+          Scheduled · {call.role}
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium tabular-nums">
+          {call.date}
+          {call.time ? ` · ${call.time}` : ""}
+        </span>
+      </div>
+
+      {/* Name + stage meta */}
+      <div className="text-[13px] font-semibold text-[#0f0e0d] leading-tight">
+        {call.name}
+      </div>
+      {call.stage && (
+        <div className="mt-0.5 text-[11px] text-[#0f0e0d]/70">
+          {call.stage}
+        </div>
+      )}
+
+      {/* Agenda / topic paragraph */}
+      {call.topic && (
+        <p className="mt-2 pt-2 border-t border-black/[0.06] text-[11px] text-[#0f0e0d]/70 leading-relaxed">
+          {call.topic}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A single call dot on the timeline. Size scales subtly with call duration
+ * (longer calls = denser context = larger dot) to give a quick sense of
+ * call weight at a glance. Hover reveals role + name + duration.
+ */
+function TimelineCallDot({
+  transcript,
+  date,
+  leftPct,
+}: {
+  transcript: Transcript;
+  date: Date;
+  leftPct: number;
+}) {
+  // Scale dot size by duration: 15m → 10px, 40m → 16px
+  const size = Math.max(10, Math.min(16, 8 + transcript.minutes / 4));
+  const dateLabel = date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex items-center justify-center rounded-full bg-[#1e6b3a] ring-2 ring-white hover:ring-[#1e6b3a]/20 transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1e6b3a]/30"
+          style={{
+            left: `${leftPct}%`,
+            width: `${size}px`,
+            height: `${size}px`,
+          }}
+          aria-label={`${transcript.role} call on ${dateLabel}, ${transcript.minutes} minutes`}
+        >
+          <span className="sr-only">{transcript.role}</span>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="top"
+        align="center"
+        className="w-72 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+      >
+        <div className="p-3">
+          {/* Header row — role eyebrow + date */}
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#1e6b3a] font-semibold">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#1e6b3a]" />
+              Completed · {transcript.role}
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium tabular-nums">
+              {dateLabel}
+            </span>
+          </div>
+
+          {/* Name + duration/source meta */}
+          <div className="text-[13px] font-semibold text-[#0f0e0d] leading-tight">
+            {transcript.name}
+          </div>
+          <div className="mt-0.5 text-[11px] text-[#0f0e0d]/55 tabular-nums">
+            {transcript.minutes} min · {transcript.source ?? "granola"}
+            {transcript.stage && (
+              <>
+                <span className="text-[#0f0e0d]/25"> · </span>
+                <span className="text-[#0f0e0d]/70">{transcript.stage}</span>
+              </>
+            )}
+          </div>
+
+          {/* Narrative summary */}
+          {transcript.summary && (
+            <p className="mt-2 pt-2 border-t border-black/[0.06] text-[11px] text-[#0f0e0d]/70 leading-relaxed">
+              {transcript.summary}
+            </p>
+          )}
+
+          {/* Top highlights — capped to 3 inside the hover to keep the
+              preview scannable; full list lives in the drill-in accordion. */}
+          {transcript.highlights && transcript.highlights.length > 0 && (
+            <div className="mt-2.5 pt-2.5 border-t border-black/[0.06]">
+              <div className="text-[9.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium mb-1.5">
+                Highlights
+              </div>
+              <ul className="flex flex-col gap-1">
+                {transcript.highlights.slice(0, 3).map((h, i) => (
+                  <li
+                    key={i}
+                    className="flex gap-1.5 text-[11px] text-[#0f0e0d]/70 leading-snug"
+                  >
+                    <span className="text-[#0f0e0d]/30 flex-shrink-0" aria-hidden>
+                      ·
+                    </span>
+                    <span>{h}</span>
+                  </li>
+                ))}
+                {transcript.highlights.length > 3 && (
+                  <li className="text-[10px] text-[#0f0e0d]/40 italic pl-3">
+                    +{transcript.highlights.length - 3} more in transcript
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
@@ -1652,12 +2472,13 @@ function DiscoveryRow({ project }: { project: Project }) {
         </div>
       </div>
 
-      {/* RIGHT: transcript chips + AI finding synthesized from those calls */}
+      {/* RIGHT: transcript chips + next call + AI finding */}
       <div className="min-w-0 flex flex-col gap-2">
         <div className="flex items-center gap-1.5 flex-wrap">
           {d.transcripts.map((t) => (
             <TranscriptChip key={t.id} transcript={t} />
           ))}
+          {d.nextCall && <NextCallChip call={d.nextCall} />}
           {Array.from({ length: Math.max(0, target - captured) }).map(
             (_, i) => (
               <span
@@ -1680,6 +2501,41 @@ function DiscoveryRow({ project }: { project: Project }) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Pill representing an upcoming scheduled call in the per-project row.
+ * Outlined/dashed to visually distinguish from completed transcript chips.
+ */
+function NextCallChip({ call }: { call: ScheduledCall }) {
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 h-[22px] rounded-full border border-dashed border-[#1e6b3a]/50 bg-white px-2 text-[10.5px] text-[#1e6b3a] leading-none hover:border-[#1e6b3a] hover:bg-[#eaf3ec]/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e6b3a]/30"
+        >
+          <span className="inline-block w-1.5 h-1.5 rounded-full border border-[#1e6b3a]" />
+          <span className="font-medium">Next · {call.role}</span>
+          <Separator
+            orientation="vertical"
+            className="h-2.5 bg-[#1e6b3a]/20"
+          />
+          <span className="tabular-nums text-[#1e6b3a]/70">
+            {call.date}
+            {call.time ? ` · ${call.time}` : ""}
+          </span>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="top"
+        align="start"
+        className="w-72 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+      >
+        <NextCallHoverBody call={call} />
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
@@ -1925,7 +2781,7 @@ function PastMigrations({ projects }: { projects: Project[] }) {
   );
 }
 
-// ————————————————————————————————————————————————————————————————
+// ——————————————————————————————————————————��—————————————————————
 // Chat view
 // ————————————————————————————————————————————————————————————————
 
