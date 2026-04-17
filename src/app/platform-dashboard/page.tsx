@@ -552,7 +552,7 @@ function MiniStat({
 
 // ————————————————————————————————————————————————————————————————
 // Projects view
-// ————————————————————————————————————————————————————————————————
+// —���——————————————————————————————————————————————————————————————
 
 function ProjectsView() {
   const [selected, setSelected] = useState<string | null>("atl");
@@ -640,6 +640,22 @@ const TOOL_KIND_META: Record<
   db: { Icon: Database, color: "text-[#8d6e2f]" },
 };
 
+/**
+ * Inline reasoning panel rendered inside an expanded ProjectRow.
+ *
+ * Uses the authentic `@tool-ui/plan` `Plan.Compact` for the step list (so we
+ * get the real step icons, connector line, shimmer on in-progress rows, and
+ * celebration animation for free) but overrides the default shadcn `<Card>`
+ * chrome to sit directly on the row's own background:
+ *   - `border-0 shadow-none bg-transparent` — no nested card
+ *   - `max-w-none min-w-0 w-full` — override Plan's default `max-w-xl min-w-80`
+ *   - `py-0 gap-0` — collapse Card's internal vertical padding (we own it)
+ *
+ * A compact header above the Plan provides the "LIVE REASONING · 2/4" eyebrow
+ * and progress bar (we keep these outside the Plan so Plan.Compact stays
+ * pristine in its tight list-only mode), and any steps with a `tool` chip
+ * surface in a right-aligned summary below the timeline.
+ */
 function ReasoningPanel({ steps }: { steps: ReasoningStep[] }) {
   const todos = toPlanTodos(steps);
   const completedCount = steps.filter((s) => s.status === "completed").length;
@@ -648,59 +664,60 @@ function ReasoningPanel({ steps }: { steps: ReasoningStep[] }) {
     totalCount === 0
       ? 0
       : Math.round((completedCount / totalCount) * 100);
-
-  // Pair each reasoning step to its absolute row position so we can render a
-  // synchronized tool-chip column to the right of the Plan.Compact list.
-  const chipRows = steps.map((s) => ({ id: s.id, tool: s.tool }));
+  const toolsUsed = steps
+    .filter((s) => s.tool && s.status !== "pending")
+    .map((s) => ({ id: s.id, tool: s.tool! }));
 
   return (
-    <div className="rounded-lg border border-black/[0.06] bg-[#fafaf8] px-5 py-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 mb-3">
+    <div className="px-6 pb-6 pt-2">
+      {/* Compact header — sits on the row's own bg (no nested card) */}
+      <div className="flex items-center justify-between gap-4 mb-2.5">
         <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
           <Activity className="w-3 h-3" strokeWidth={2} aria-hidden />
           Live Reasoning
         </div>
-        <div className="text-[10.5px] font-mono text-[#0f0e0d]/55 tabular-nums">
-          {completedCount} / {totalCount}
+        <div className="text-[10.5px] font-mono text-[#0f0e0d]/50 tabular-nums">
+          {completedCount} / {totalCount} complete
         </div>
       </div>
 
-      {/* Progress bar */}
+      {/* Thin progress bar */}
       <div
-        className="h-[3px] bg-black/[0.07] rounded-full overflow-hidden mb-4"
+        className="h-[2px] bg-black/[0.08] rounded-full overflow-hidden mb-3"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={progress}
       >
         <div
-          className="h-full bg-[#0f0e0d] rounded-full transition-all duration-500"
+          className="h-full bg-[#0f0e0d] rounded-full transition-[width] duration-500"
           style={{ width: `${progress}%` }}
         />
       </div>
 
-      {/* Two-column body: Plan.Compact on the left, synchronized tool chips
-          on the right. The chip column uses the same row pitch as the Plan
-          rows (py-1.5 + 24px icon + 24px line-height) so each chip aligns
-          with its step label. */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 items-start">
-        <Plan.Compact
-          id={`reasoning-${steps[0]?.id ?? "empty"}`}
-          todos={todos}
-          maxVisibleTodos={todos.length}
-        />
-        <ul className="flex flex-col gap-0 pt-0">
-          {chipRows.map((row) => (
-            <li
-              key={row.id}
-              className="flex items-center h-[36px]" /* matches Plan row height */
-            >
-              {row.tool ? <ToolChip tool={row.tool} /> : <span aria-hidden />}
-            </li>
+      {/* Authentic tool-ui Plan, chrome-stripped to sit inline on the row.
+          We do NOT modify the upstream component — the className overrides
+          only target the outer shadcn <Card> wrapper. */}
+      <Plan.Compact
+        id={`reasoning-${steps[0]?.id ?? "empty"}`}
+        todos={todos}
+        maxVisibleTodos={todos.length}
+        className="max-w-none min-w-0 w-full border-0 bg-transparent shadow-none py-0 gap-0"
+      />
+
+      {/* Tool summary — shown once below the timeline rather than inline so
+          rows stay visually consistent (inline descriptions would trigger
+          the Plan's Collapsible path and break the step connector). */}
+      {toolsUsed.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-black/[0.06] flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium mr-1">
+            Tools
+          </span>
+          {toolsUsed.map(({ id, tool }) => (
+            <ToolChip key={id} tool={tool} />
           ))}
-        </ul>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -709,7 +726,7 @@ function ToolChip({ tool }: { tool: NonNullable<ReasoningStep["tool"]> }) {
   const meta = TOOL_KIND_META[tool.kind];
   const Icon = meta.Icon;
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.08] bg-white px-2.5 py-1 text-[11px] text-[#0f0e0d] shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.08] bg-white px-2 py-0.5 text-[10.5px] text-[#0f0e0d] leading-5">
       <Icon className={cn("w-3 h-3", meta.color)} strokeWidth={2} aria-hidden />
       <span className="truncate max-w-[140px]">{tool.label}</span>
     </span>
@@ -958,9 +975,7 @@ function ProjectRow({
       </button>
 
       {active && project.reasoning && (
-        <div className="px-6 pb-6 pt-1">
-          <ReasoningPanel steps={project.reasoning} />
-        </div>
+        <ReasoningPanel steps={project.reasoning} />
       )}
     </div>
   );
