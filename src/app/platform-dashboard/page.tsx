@@ -35,7 +35,6 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Plan, type PlanTodo } from "@/components/tool-ui/plan";
 import { cn } from "@/lib/utils";
@@ -92,8 +91,6 @@ type DiscoveryContext = {
   stakeholdersTarget: number;
   /** 1–2 sentence reasoning snippet summarizing what was learned across calls. */
   keyFinding?: string;
-  /** Access level we currently have to their systems. */
-  accessStatus: "no-access" | "awaiting-credentials" | "read-only";
 };
 
 type Project = {
@@ -165,7 +162,6 @@ const ACTIVE_PROJECTS: Project[] = [
       ],
       stakeholdersTarget: 3,
       keyFinding: "Ghost system flagged · Shopify consumer SOR syncs nightly into QBO",
-      accessStatus: "read-only",
     },
     reasoning: [
       {
@@ -336,7 +332,6 @@ const ACTIVE_PROJECTS: Project[] = [
       ],
       stakeholdersTarget: 3,
       keyFinding: "NetSuite sandbox access pending · Ops runs side-car Airtable for inventory",
-      accessStatus: "awaiting-credentials",
     },
     reasoning: [
       {
@@ -385,7 +380,6 @@ const ACTIVE_PROJECTS: Project[] = [
       ],
       stakeholdersTarget: 2,
       keyFinding: "Taproom POS feeds QBO nightly · needs class-based tracking in NetSuite",
-      accessStatus: "read-only",
     },
     reasoning: [
       {
@@ -976,21 +970,15 @@ function MilestoneStrip({ project }: { project: Project }) {
 // ————————————————————————————————————————————————————————————————
 // Discovery Tracker — replaces the MilestoneStrip for discovery projects
 //
-// Displays transcripts captured per project, stakeholder coverage, access
-// status, and the AI's current reasoning summary from those calls. This is
-// the primary context-gathering surface for engagements that don't have
-// system access yet — we don't have APIs to scan, just conversations to
-// synthesize.
+// Summarizes where each pre-implementation project is in the context-
+// gathering process: stakeholder coverage, transcripts captured from each
+// call (role + duration, hover for participant name), and the AI's
+// synthesized finding across those conversations.
+//
+// Projects live here until they move into implementation — this isn't
+// about system access or credentials, just about whether the engagement
+// has crossed the implementation threshold yet.
 // ————————————————————————————————————————————————————————————————
-
-const ACCESS_META: Record<
-  DiscoveryContext["accessStatus"],
-  { label: string; tone: "neutral" | "amber" | "green" }
-> = {
-  "no-access": { label: "No access", tone: "amber" },
-  "awaiting-credentials": { label: "Awaiting credentials", tone: "amber" },
-  "read-only": { label: "Read-only", tone: "green" },
-};
 
 function DiscoveryTracker({ projects }: { projects: Project[] }) {
   return (
@@ -1031,41 +1019,30 @@ function DiscoveryRow({ project }: { project: Project }) {
 
   const captured = d.transcripts.length;
   const target = d.stakeholdersTarget;
-  const access = ACCESS_META[d.accessStatus];
+  const isComplete = captured >= target;
 
   return (
     <div className="grid grid-cols-[minmax(0,200px)_1fr] gap-4 items-start">
-      {/* LEFT: company + stakeholder coverage + access status */}
-      <div className="min-w-0 flex flex-col gap-1.5">
+      {/* LEFT: company + stakeholder coverage summary */}
+      <div className="min-w-0 flex flex-col gap-1">
         <div className="text-[13px] font-medium text-[#0f0e0d] truncate leading-tight">
           {project.company}
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10.5px] text-[#0f0e0d]/55 tabular-nums">
-            {captured} / {target} stakeholders
-          </span>
-          <Separator
-            orientation="vertical"
-            className="h-2.5 bg-black/[0.1]"
-          />
-          <Badge
-            variant="outline"
+        <div className="flex items-center gap-1.5">
+          <span
             className={cn(
-              "h-[18px] px-1.5 text-[9.5px] uppercase tracking-[0.1em] font-medium rounded-full border",
-              access.tone === "green" &&
-                "bg-[#eaf3ec] text-[#1e6b3a] border-[#c8dfcd]",
-              access.tone === "amber" &&
-                "bg-[#fbf2e1] text-[#8a5a12] border-[#ecd6a8]",
-              access.tone === "neutral" &&
-                "bg-black/[0.04] text-[#0f0e0d]/60 border-black/[0.08]",
+              "inline-block w-1.5 h-1.5 rounded-full",
+              isComplete ? "bg-[#1e6b3a]" : "bg-[#c78a36]",
             )}
-          >
-            {access.label}
-          </Badge>
+            aria-hidden
+          />
+          <span className="text-[10.5px] text-[#0f0e0d]/55 tabular-nums">
+            {captured} of {target} stakeholders
+          </span>
         </div>
       </div>
 
-      {/* RIGHT: transcript chips + key finding */}
+      {/* RIGHT: transcript chips + AI finding synthesized from those calls */}
       <div className="min-w-0 flex flex-col gap-2">
         <div className="flex items-center gap-1.5 flex-wrap">
           {d.transcripts.map((t) => (
