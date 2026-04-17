@@ -93,6 +93,10 @@ type Transcript = {
   source?: "granola" | "zoom" | "manual";
   /** Call date in short form, e.g. "Mar 14". */
   date?: string;
+  /** Which stage of discovery this call represented — e.g. "Kickoff",
+   *  "Systems deep-dive", "Validation". Shown on the hover preview and
+   *  surfaced in the timeline lane summary. */
+  stage?: string;
   /** 1–2 sentence synthesis of what came out of the call. */
   summary?: string;
   /** 3–5 verbatim or paraphrased highlights pulled from the transcript. */
@@ -128,6 +132,8 @@ type ScheduledCall = {
   time?: string;
   /** What this call is intended to cover. Shown in hover + inline. */
   topic?: string;
+  /** What stage of discovery this call represents, mirrors Transcript.stage. */
+  stage?: string;
 };
 
 type DiscoveryContext = {
@@ -217,7 +223,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Jane Okafor",
           minutes: 31,
           source: "granola",
-          date: "Mar 11",
+          date: "Mar 26",
+          stage: "Strategic kickoff",
           summary:
             "Jane wants multi-subsidiary consolidation with intercompany eliminations. Current QBO close takes 9 business days.",
           highlights: [
@@ -233,7 +240,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Mark Reyes",
           minutes: 22,
           source: "granola",
-          date: "Mar 13",
+          date: "Apr 2",
+          stage: "Process deep-dive",
           summary:
             "Mark flagged a Shopify storefront that syncs nightly into QBO via a custom script — not in the original SOW scope.",
           highlights: [
@@ -248,7 +256,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Priya Shah",
           minutes: 17,
           source: "granola",
-          date: "Mar 14",
+          date: "Apr 9",
+          stage: "Systems alignment",
           summary:
             "Priya confirmed API access rights and OAuth setup is ready. Flagged a legacy ADP payroll integration that feeds GL.",
           highlights: [
@@ -260,13 +269,15 @@ const ACTIVE_PROJECTS: Project[] = [
       ],
       stakeholdersTarget: 3,
       keyFinding: "Ghost system flagged · Shopify consumer SOR syncs nightly into QBO",
-      stageSummary: "Coverage complete · awaiting follow-up to validate FX consolidation rules before Scan",
+      stageSummary:
+        "All three primary stakeholders have been interviewed across a three-week cadence — kickoff with Jane surfaced the consolidation goal, Mark's process deep-dive uncovered the Shopify ghost system, and Priya confirmed API readiness. One validation call remains before we can move to the Scan step.",
       nextCall: {
         id: "n1",
         role: "CFO",
         name: "Jane Okafor",
-        date: "Apr 21",
+        date: "Apr 24",
         time: "10:30 AM",
+        stage: "Final validation",
         topic: "FX consolidation rules + intercompany pricing between US Inc and IE Ltd",
       },
       analysis: {
@@ -460,7 +471,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Dan Whittaker",
           minutes: 28,
           source: "zoom",
-          date: "Feb 2",
+          date: "Feb 27",
+          stage: "Initial kickoff",
           summary:
             "Dan walked through their current QBO Simple Start setup. Biggest pain: inventory lives in Airtable and is reconciled manually each month.",
           highlights: [
@@ -474,14 +486,16 @@ const ACTIVE_PROJECTS: Project[] = [
       stakeholdersTarget: 3,
       missingStakeholders: ["Ops manager", "CEO or CFO"],
       keyFinding: "NetSuite sandbox access pending · Ops runs side-car Airtable for inventory",
-      stageSummary: "Partial coverage · escalation call booked to unblock NetSuite sandbox credentials",
+      stageSummary:
+        "Only one of three stakeholders engaged so far — Dan's kickoff landed seven weeks ago and momentum stalled on NetSuite sandbox provisioning. An escalation call with the Ops manager is booked to unblock credentials; CFO-level engagement is still unscheduled and is the critical path to restarting discovery.",
       nextCall: {
         id: "n1",
         role: "Ops manager",
         name: "Nora Belmont",
-        date: "Apr 23",
+        date: "Apr 28",
         time: "2:00 PM",
-        topic: "Inventory reconciliation workflow + Airtable ownership",
+        stage: "Escalation",
+        topic: "Inventory reconciliation workflow + Airtable ownership · unblock NetSuite sandbox credentials",
       },
       analysis: {
         systemsInScope: [
@@ -549,7 +563,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Rafael Ortiz",
           minutes: 24,
           source: "granola",
-          date: "Feb 18",
+          date: "Mar 3",
+          stage: "Strategic vision",
           summary:
             "Rafael wants clearer visibility into per-taproom margin. Currently everything rolls up as a single P&L.",
           highlights: [
@@ -564,7 +579,8 @@ const ACTIVE_PROJECTS: Project[] = [
           name: "Lena Park",
           minutes: 35,
           source: "granola",
-          date: "Feb 20",
+          date: "Mar 5",
+          stage: "Systems walkthrough",
           summary:
             "Lena walked through the COA. Taproom POS (Toast) feeds QBO nightly via a batch import — fragile and error-prone.",
           highlights: [
@@ -577,7 +593,8 @@ const ACTIVE_PROJECTS: Project[] = [
       ],
       stakeholdersTarget: 2,
       keyFinding: "Taproom POS feeds QBO nightly · needs class-based tracking in NetSuite",
-      stageSummary: "Coverage complete · stalled 43 days awaiting BRD v1 feedback · no follow-up booked",
+      stageSummary:
+        "Both stakeholders interviewed in early March with a clean strategic picture of the per-taproom margin goal. Discovery output was packaged as BRD v1 and delivered on Mar 10 — awaiting feedback for 38 days now with no follow-up call booked. This is the most critical stall in the portfolio.",
       // Intentionally no nextCall — the engagement is stalled and nothing
       // is on the calendar. The timeline renders this gap explicitly.
       analysis: {
@@ -710,7 +727,7 @@ export default function PipelineDashboardPage() {
 
 // ————————————————————————————————————————————————————————————————
 // Sidebar
-// ————————————————————————————————————————————————————————————————
+// —————————————————————————————————————————���——————————————————————
 
 function Sidebar({
   nav,
