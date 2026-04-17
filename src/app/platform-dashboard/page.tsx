@@ -136,6 +136,20 @@ type ScheduledCall = {
   stage?: string;
 };
 
+/**
+ * A material artifact (transcript, BRD, analysis doc, etc.) that's been
+ * shared with the client or is still pending delivery. Tracked to ensure
+ * deliverables stay in sync with discovery stage.
+ */
+type DiscoveryMaterial = {
+  id: string;
+  name: string; // e.g. "Call transcripts", "BRD v1", "Discovery summary"
+  type: "transcript" | "doc" | "brd" | "summary" | "other";
+  status: "delivered" | "in_progress" | "pending";
+  /** ISO date or "Mar 10" when delivered/sent. */
+  date?: string;
+};
+
 type DiscoveryContext = {
   transcripts: Transcript[];
   /** Total stakeholders expected to be interviewed before discovery is complete. */
@@ -152,6 +166,10 @@ type DiscoveryContext = {
   /** One-line status of where discovery stands right now (distinct from
    *  `keyFinding` which summarizes substantive findings). */
   stageSummary?: string;
+  /** Materials shared with or pending delivery to the client — transcripts,
+   *  BRDs, summaries, etc. — to keep stakeholders aligned on what's been
+   *  exchanged at each stage of discovery. */
+  materials?: DiscoveryMaterial[];
 };
 
 type Project = {
@@ -280,6 +298,28 @@ const ACTIVE_PROJECTS: Project[] = [
         stage: "Final validation",
         topic: "FX consolidation rules + intercompany pricing between US Inc and IE Ltd",
       },
+      materials: [
+        {
+          id: "m1",
+          name: "Call transcripts",
+          type: "transcript",
+          status: "delivered",
+          date: "Apr 10",
+        },
+        {
+          id: "m2",
+          name: "Discovery summary",
+          type: "summary",
+          status: "delivered",
+          date: "Apr 12",
+        },
+        {
+          id: "m3",
+          name: "BRD v1",
+          type: "brd",
+          status: "in_progress",
+        },
+      ],
       analysis: {
         systemsInScope: [
           { name: "QBO Advanced", note: "Primary GL · 94K records" },
@@ -497,6 +537,21 @@ const ACTIVE_PROJECTS: Project[] = [
         stage: "Escalation",
         topic: "Inventory reconciliation workflow + Airtable ownership · unblock NetSuite sandbox credentials",
       },
+      materials: [
+        {
+          id: "m1",
+          name: "Kickoff notes",
+          type: "transcript",
+          status: "delivered",
+          date: "Mar 5",
+        },
+        {
+          id: "m2",
+          name: "Requirements doc",
+          type: "doc",
+          status: "pending",
+        },
+      ],
       analysis: {
         systemsInScope: [
           { name: "QBO Simple Start", note: "Primary GL · light usage" },
@@ -597,6 +652,28 @@ const ACTIVE_PROJECTS: Project[] = [
         "Both stakeholders interviewed in early March with a clean strategic picture of the per-taproom margin goal. Discovery output was packaged as BRD v1 and delivered on Mar 10 — awaiting feedback for 38 days now with no follow-up call booked. This is the most critical stall in the portfolio.",
       // Intentionally no nextCall — the engagement is stalled and nothing
       // is on the calendar. The timeline renders this gap explicitly.
+      materials: [
+        {
+          id: "m1",
+          name: "Call transcripts",
+          type: "transcript",
+          status: "delivered",
+          date: "Mar 6",
+        },
+        {
+          id: "m2",
+          name: "BRD v1",
+          type: "brd",
+          status: "delivered",
+          date: "Mar 10",
+        },
+        {
+          id: "m3",
+          name: "BRD v2 (pending feedback)",
+          type: "brd",
+          status: "pending",
+        },
+      ],
       analysis: {
         systemsInScope: [
           { name: "QBO Plus", note: "Primary GL · class tracking enabled" },
@@ -687,7 +764,7 @@ type NavKey = "projects" | "chat";
 
 // ————————————————————————————————————————————————————————————————
 // Page
-// —————————————————————————————————————————————————————————————��——
+// —————————————————————————————————————————————————————————————���——
 
 export default function PipelineDashboardPage() {
   const [nav, setNav] = useState<NavKey>("projects");
@@ -2022,7 +2099,106 @@ function TimelineLane({
           </p>
         </>
       )}
+
+      {/* Materials row — left label, right side chips showing delivered,
+          in-progress, and pending artifacts (transcripts, docs, BRDs, etc.) */}
+      {d.materials && d.materials.length > 0 && (
+        <>
+          <div className="flex flex-col justify-start pt-2">
+            <div className="text-[9.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium">
+              Materials
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap pt-2 pb-2">
+            {d.materials.map((m) => (
+              <MaterialChip key={m.id} material={m} />
+            ))}
+          </div>
+        </>
+      )}
     </>
+  );
+}
+
+/**
+ * A chip representing a single material artifact — transcript, BRD, summary,
+ * etc. — with status indicated by color and style (solid green = delivered,
+ * amber/orange = in-progress, gray outline = pending).
+ */
+function MaterialChip({ material }: { material: DiscoveryMaterial }) {
+  const statusColor =
+    material.status === "delivered"
+      ? { bg: "bg-[#eaf3ec]", text: "text-[#1e6b3a]", border: "border-[#1e6b3a]" }
+      : material.status === "in_progress"
+        ? {
+            bg: "bg-[#fef3e0]",
+            text: "text-[#c78a36]",
+            border: "border-[#c78a36]",
+          }
+        : { bg: "bg-white", text: "text-[#0f0e0d]/40", border: "border-[#0f0e0d]/20" };
+
+  const statusLabel =
+    material.status === "delivered"
+      ? "✓"
+      : material.status === "in_progress"
+        ? "⟳"
+        : "○";
+
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "inline-flex items-center gap-1 h-[20px] rounded-full border px-2 text-[9.5px] font-medium transition-colors focus:outline-none focus-visible:ring-2",
+            statusColor.bg,
+            statusColor.text,
+            `border-${statusColor.border.split("-")[1]}`,
+            "hover:opacity-80"
+          )}
+        >
+          <span className="text-[10px] leading-none">{statusLabel}</span>
+          <span>{material.name}</span>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="top"
+        align="center"
+        className="w-56 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+      >
+        <div className="p-3">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span
+              className={cn(
+                "text-[10px] uppercase tracking-[0.14em] font-semibold",
+                statusColor.text
+              )}
+            >
+              {material.status === "delivered"
+                ? "✓ Delivered"
+                : material.status === "in_progress"
+                  ? "⟳ In Progress"
+                  : "○ Pending"}
+            </span>
+            {material.date && (
+              <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium">
+                {material.date}
+              </span>
+            )}
+          </div>
+          <div className="text-[12px] font-semibold text-[#0f0e0d]">
+            {material.name}
+          </div>
+          <div className="mt-1 text-[10px] text-[#0f0e0d]/60">
+            {material.type === "transcript" && "Call recording & transcription"}
+            {material.type === "doc" && "Requirements & documentation"}
+            {material.type === "brd" && "Business requirements document"}
+            {material.type === "summary" && "Discovery findings summary"}
+            {material.type === "other" && "Supporting artifact"}
+          </div>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
