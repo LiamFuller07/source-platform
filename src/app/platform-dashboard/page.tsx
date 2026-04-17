@@ -13,6 +13,10 @@ import {
   MessageSquare,
   LayoutGrid,
   Activity,
+  Globe,
+  FileText,
+  FileSpreadsheet,
+  Database,
 } from "lucide-react";
 import {
   Collapsible,
@@ -84,24 +88,28 @@ type Project = {
 /**
  * Adapt extended reasoning steps down to canonical `@tool-ui/plan` todos.
  *
- * - `awaiting_response` → `in_progress` (both are "active but not done"),
- *   with the reason surfaced in the todo description.
- * - `tool.label` is appended to / stored in the description so the upstream
- *   Plan renders it as expandable secondary content.
+ * - `awaiting_response` → `in_progress` (both are "active but not done").
+ * - We intentionally DO NOT populate `description` here, because the
+ *   upstream Plan collapses description-bearing rows into a Collapsible
+ *   (with a ChevronRight + shifted gutter), which breaks the vertical
+ *   timeline connector and makes the in-progress row sit flush with a
+ *   different left-edge than the other steps. Tool chips and awaiting
+ *   reasons are surfaced separately in the expanded row header instead.
+ * - `description` on the input ReasoningStep IS preserved when provided
+ *   explicitly by the caller, so it can still opt into the Collapsible
+ *   treatment when that's the intended UX.
  */
 function toPlanTodos(steps: ReasoningStep[]): PlanTodo[] {
   return steps.map((s) => {
-    const parts: string[] = [];
-    if (s.tool) parts.push(s.tool.label);
-    if (s.status === "awaiting_response") parts.push("Awaiting client response");
-    if (s.description) parts.push(s.description);
-
-    const description = parts.length > 0 ? parts.join(" · ") : undefined;
-
     const status: PlanTodo["status"] =
       s.status === "awaiting_response" ? "in_progress" : s.status;
 
-    return { id: s.id, label: s.label, status, description };
+    return {
+      id: s.id,
+      label: s.label,
+      status,
+      description: s.description,
+    };
   });
 }
 
@@ -666,6 +674,96 @@ function ProjectsView() {
 }
 
 // ————————————————————————————————————————————————————————————————
+// Reasoning Panel (expanded project row body)
+// ————————————————————————————————————————————————————————————————
+
+const TOOL_KIND_META: Record<
+  NonNullable<ReasoningStep["tool"]>["kind"],
+  { Icon: typeof Globe; color: string }
+> = {
+  web: { Icon: Globe, color: "text-[#0f0e0d]/55" },
+  doc: { Icon: FileText, color: "text-[#2d5aa0]" },
+  sheet: { Icon: FileSpreadsheet, color: "text-[#217346]" },
+  db: { Icon: Database, color: "text-[#8d6e2f]" },
+};
+
+function ReasoningPanel({ steps }: { steps: ReasoningStep[] }) {
+  const todos = toPlanTodos(steps);
+  const completedCount = steps.filter((s) => s.status === "completed").length;
+  const totalCount = steps.length;
+  const progress =
+    totalCount === 0
+      ? 0
+      : Math.round((completedCount / totalCount) * 100);
+
+  // Pair each reasoning step to its absolute row position so we can render a
+  // synchronized tool-chip column to the right of the Plan.Compact list.
+  const chipRows = steps.map((s) => ({ id: s.id, tool: s.tool }));
+
+  return (
+    <div className="rounded-lg border border-black/[0.06] bg-[#fafaf8] px-5 py-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 mb-3">
+        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
+          <Activity className="w-3 h-3" strokeWidth={2} aria-hidden />
+          Live Reasoning
+        </div>
+        <div className="text-[10.5px] font-mono text-[#0f0e0d]/55 tabular-nums">
+          {completedCount} / {totalCount}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div
+        className="h-[3px] bg-black/[0.07] rounded-full overflow-hidden mb-4"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+      >
+        <div
+          className="h-full bg-[#0f0e0d] rounded-full transition-all duration-500"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      {/* Two-column body: Plan.Compact on the left, synchronized tool chips
+          on the right. The chip column uses the same row pitch as the Plan
+          rows (py-1.5 + 24px icon + 24px line-height) so each chip aligns
+          with its step label. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 items-start">
+        <Plan.Compact
+          id={`reasoning-${steps[0]?.id ?? "empty"}`}
+          todos={todos}
+          maxVisibleTodos={todos.length}
+        />
+        <ul className="flex flex-col gap-0 pt-0">
+          {chipRows.map((row) => (
+            <li
+              key={row.id}
+              className="flex items-center h-[36px]" /* matches Plan row height */
+            >
+              {row.tool ? <ToolChip tool={row.tool} /> : <span aria-hidden />}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function ToolChip({ tool }: { tool: NonNullable<ReasoningStep["tool"]> }) {
+  const meta = TOOL_KIND_META[tool.kind];
+  const Icon = meta.Icon;
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.08] bg-white px-2.5 py-1 text-[11px] text-[#0f0e0d] shadow-[0_1px_2px_rgba(15,14,13,0.03)]">
+      <Icon className={cn("w-3 h-3", meta.color)} strokeWidth={2} aria-hidden />
+      <span className="truncate max-w-[140px]">{tool.label}</span>
+    </span>
+  );
+}
+
+// ————————————————————————————————————————————————————————————————
 // Phase Header with per-project milestone strip
 // ————————————————————————————————————————————————————————————————
 
@@ -943,13 +1041,7 @@ function ProjectRow({
 
       {active && project.reasoning && (
         <div className="px-6 pb-6 pt-1">
-          <Plan
-            id={`plan-${project.id}`}
-            title="Live reasoning"
-            description={`${project.company} · ${project.status}`}
-            todos={toPlanTodos(project.reasoning)}
-            maxVisibleTodos={6}
-          />
+          <ReasoningPanel steps={project.reasoning} />
         </div>
       )}
     </div>
