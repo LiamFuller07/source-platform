@@ -1602,7 +1602,13 @@ function DiscoveryTracker({ projects }: { projects: Project[] }) {
           Source · Granola
         </div>
       </div>
-      <ul className="divide-y divide-black/[0.05]">
+
+      {/* Unified call timeline across all discovery projects — gives an
+          at-a-glance view of when stakeholder calls have been collected,
+          cadence, and coverage gaps. Sits above the per-project rows. */}
+      <DiscoveryTimeline projects={projects} />
+
+      <ul className="divide-y divide-black/[0.05] border-t border-black/[0.05]">
         {projects.map((p) => (
           <li key={p.id} className="px-4 py-3.5">
             <DiscoveryRow project={p} />
@@ -1610,6 +1616,327 @@ function DiscoveryTracker({ projects }: { projects: Project[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * A horizontal swim-lane timeline showing every discovery call across all
+ * active discovery projects on a single date axis. Each project is a lane,
+ * each call a dot positioned by its call date, with a trailing line from
+ * the most recent call to "today" when coverage is incomplete (signalling
+ * a gap that needs a follow-up call).
+ *
+ * The chart intentionally uses absolute positioning with percentage-based
+ * offsets against a normalized [minDate → today] range so lanes stay in
+ * sync across all projects without any layout thrash.
+ */
+function DiscoveryTimeline({ projects }: { projects: Project[] }) {
+  // Reference "today" matches the system locale pinned at the top of this
+  // chat (4/17/2026). Using a fixed reference keeps the demo deterministic.
+  const TODAY = new Date("2026-04-17");
+
+  // Parse "Mar 11" style dates into a Date in the current year.
+  const parseDate = (s?: string): Date | null => {
+    if (!s) return null;
+    const d = new Date(`${s} ${TODAY.getFullYear()}`);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // Collect every call with a parsed date.
+  const calls = projects.flatMap((p) =>
+    (p.discovery?.transcripts ?? [])
+      .map((t) => ({
+        projectId: p.id,
+        company: p.company,
+        transcript: t,
+        date: parseDate(t.date),
+      }))
+      .filter((c): c is typeof c & { date: Date } => c.date !== null),
+  );
+
+  if (calls.length === 0) return null;
+
+  // Normalize the time axis: earliest call → today, with a 4-day left pad
+  // so the first dot doesn't sit flush against the lane's start.
+  const rawMin = Math.min(...calls.map((c) => c.date.getTime()));
+  const minMs = rawMin - 4 * 24 * 60 * 60 * 1000;
+  const maxMs = TODAY.getTime();
+  const rangeMs = Math.max(1, maxMs - minMs);
+  const pctOf = (d: Date) => ((d.getTime() - minMs) / rangeMs) * 100;
+
+  // Compute month tick marks between min and today.
+  const ticks: { label: string; pct: number }[] = [];
+  const cursor = new Date(minMs);
+  cursor.setDate(1);
+  cursor.setHours(0, 0, 0, 0);
+  cursor.setMonth(cursor.getMonth() + 1);
+  while (cursor.getTime() < maxMs) {
+    ticks.push({
+      label: cursor.toLocaleString("en-US", { month: "short" }),
+      pct: ((cursor.getTime() - minMs) / rangeMs) * 100,
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  const todayLabel = TODAY.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  const minLabel = new Date(rawMin).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <div className="px-4 pt-3 pb-4 bg-[#fafaf8]/60">
+      {/* Eyebrow: label + date range */}
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
+          Call Timeline
+        </div>
+        <div className="text-[10px] text-[#0f0e0d]/45 tabular-nums">
+          {minLabel} &mdash; Today ({todayLabel})
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-3">
+        {/* Spacer above lane labels so the axis aligns with the first lane's top */}
+        <div />
+        {/* Date axis with month ticks */}
+        <div className="relative h-3.5 mb-1">
+          <div className="absolute inset-x-0 top-1/2 h-px bg-black/[0.08]" />
+          {ticks.map((t) => (
+            <div
+              key={t.label + t.pct}
+              className="absolute top-0 -translate-x-1/2 flex flex-col items-center gap-0.5"
+              style={{ left: `${t.pct}%` }}
+            >
+              <div className="w-px h-2 bg-black/[0.15]" />
+              <span className="text-[9px] uppercase tracking-[0.12em] text-[#0f0e0d]/40 font-medium">
+                {t.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* One row per project */}
+        {projects.map((p) => {
+          const d = p.discovery;
+          if (!d) return null;
+          const projectCalls = calls.filter((c) => c.projectId === p.id);
+          if (projectCalls.length === 0) return null;
+          const lastCall = projectCalls.reduce((a, b) =>
+            a.date.getTime() > b.date.getTime() ? a : b,
+          );
+          const captured = d.transcripts.length;
+          const isComplete = captured >= d.stakeholdersTarget;
+
+          return (
+            <TimelineLane
+              key={p.id}
+              project={p}
+              calls={projectCalls}
+              lastCallPct={pctOf(lastCall.date)}
+              pctOf={pctOf}
+              isComplete={isComplete}
+            />
+          );
+        })}
+
+        {/* Today marker column — vertical dashed line across all lanes.
+            Implemented via an absolutely-positioned overlay spanning the
+            grid, not per-lane, so it renders as a single unified line. */}
+      </div>
+
+      {/* Footer: today label aligned to 100% */}
+      <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 mt-1">
+        <div />
+        <div className="relative h-3">
+          <div
+            className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
+            style={{ left: `100%` }}
+          >
+            <span className="text-[9px] uppercase tracking-[0.12em] text-[#1e6b3a] font-medium">
+              Today
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A single swim-lane showing one project's calls on the timeline axis.
+ * Renders a light baseline track, one dot per call (sized slightly by
+ * duration), and a dashed trailing segment from the most recent call to
+ * the right edge when the project still needs more stakeholders.
+ */
+function TimelineLane({
+  project,
+  calls,
+  lastCallPct,
+  pctOf,
+  isComplete,
+}: {
+  project: Project;
+  calls: {
+    projectId: string;
+    company: string;
+    transcript: Transcript;
+    date: Date;
+  }[];
+  lastCallPct: number;
+  pctOf: (d: Date) => number;
+  isComplete: boolean;
+}) {
+  const d = project.discovery!;
+
+  return (
+    <>
+      {/* Left: project label + coverage */}
+      <div className="flex flex-col justify-center min-w-0 py-1.5">
+        <div className="text-[11px] font-medium text-[#0f0e0d] truncate leading-tight">
+          {project.company}
+        </div>
+        <div className="flex items-center gap-1 mt-0.5">
+          <span
+            className={cn(
+              "inline-block w-1.5 h-1.5 rounded-full",
+              isComplete ? "bg-[#1e6b3a]" : "bg-[#c78a36]",
+            )}
+            aria-hidden
+          />
+          <span className="text-[9.5px] text-[#0f0e0d]/50 tabular-nums">
+            {d.transcripts.length}/{d.stakeholdersTarget}
+          </span>
+        </div>
+      </div>
+
+      {/* Right: lane track + call dots */}
+      <div className="relative h-10 py-1.5">
+        {/* Baseline track — subtle, always visible */}
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-black/[0.06]" />
+
+        {/* Trailing gap from last call to today, if incomplete — dashed amber */}
+        {!isComplete && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-0 border-t border-dashed border-[#c78a36]/60"
+            style={{
+              left: `${lastCallPct}%`,
+              right: 0,
+            }}
+            aria-hidden
+          />
+        )}
+
+        {/* Solid connecting line between first and last call on this lane */}
+        {calls.length > 1 && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-[1.5px] bg-[#0f0e0d]/25 rounded-full"
+            style={{
+              left: `${pctOf(calls.reduce((a, b) => (a.date < b.date ? a : b)).date)}%`,
+              width: `${
+                pctOf(calls.reduce((a, b) => (a.date > b.date ? a : b)).date) -
+                pctOf(calls.reduce((a, b) => (a.date < b.date ? a : b)).date)
+              }%`,
+            }}
+            aria-hidden
+          />
+        )}
+
+        {/* Call dots */}
+        {calls.map(({ transcript, date }) => (
+          <TimelineCallDot
+            key={transcript.id}
+            transcript={transcript}
+            date={date}
+            leftPct={pctOf(date)}
+          />
+        ))}
+
+        {/* "Needed" pill anchored to the right edge when gaps exist */}
+        {!isComplete && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-0"
+            style={{ right: 0 }}
+          >
+            <span className="inline-flex items-center gap-1 h-[18px] rounded-full border border-dashed border-[#c78a36]/60 bg-white px-1.5 text-[9px] uppercase tracking-[0.1em] text-[#c78a36] font-medium">
+              <CircleDashed className="h-2.5 w-2.5" strokeWidth={2.25} aria-hidden />
+              {d.stakeholdersTarget - d.transcripts.length} needed
+            </span>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/**
+ * A single call dot on the timeline. Size scales subtly with call duration
+ * (longer calls = denser context = larger dot) to give a quick sense of
+ * call weight at a glance. Hover reveals role + name + duration.
+ */
+function TimelineCallDot({
+  transcript,
+  date,
+  leftPct,
+}: {
+  transcript: Transcript;
+  date: Date;
+  leftPct: number;
+}) {
+  // Scale dot size by duration: 15m → 10px, 40m → 16px
+  const size = Math.max(10, Math.min(16, 8 + transcript.minutes / 4));
+  const dateLabel = date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex items-center justify-center rounded-full bg-[#1e6b3a] ring-2 ring-white hover:ring-[#1e6b3a]/20 transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1e6b3a]/30"
+          style={{
+            left: `${leftPct}%`,
+            width: `${size}px`,
+            height: `${size}px`,
+          }}
+          aria-label={`${transcript.role} call on ${dateLabel}, ${transcript.minutes} minutes`}
+        >
+          <span className="sr-only">{transcript.role}</span>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="top"
+        align="center"
+        className="w-56 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+      >
+        <div className="p-3">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
+              {transcript.role}
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium tabular-nums">
+              {dateLabel}
+            </span>
+          </div>
+          <div className="text-[13px] font-semibold text-[#0f0e0d] leading-tight">
+            {transcript.name}
+          </div>
+          <div className="mt-0.5 text-[11px] text-[#0f0e0d]/55 tabular-nums">
+            {transcript.minutes} min · {transcript.source ?? "granola"}
+          </div>
+          {transcript.summary && (
+            <p className="mt-2 pt-2 border-t border-black/[0.06] text-[11px] text-[#0f0e0d]/70 leading-snug">
+              {transcript.summary}
+            </p>
+          )}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
