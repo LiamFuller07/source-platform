@@ -19,6 +19,8 @@ import {
   Database,
   Mic,
   CircleDashed,
+  Brain,
+  Loader2,
 } from "lucide-react";
 import {
   Collapsible,
@@ -36,6 +38,12 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { Plan, type PlanTodo } from "@/components/tool-ui/plan";
 import { cn } from "@/lib/utils";
 
@@ -83,14 +91,37 @@ type Transcript = {
   name: string;
   minutes: number;
   source?: "granola" | "zoom" | "manual";
+  /** Call date in short form, e.g. "Mar 14". */
+  date?: string;
+  /** 1–2 sentence synthesis of what came out of the call. */
+  summary?: string;
+  /** 3–5 verbatim or paraphrased highlights pulled from the transcript. */
+  highlights?: string[];
+};
+
+/**
+ * AI-synthesized analysis across all transcripts for a given project.
+ * Shown in the Discovery drill-in alongside the individual transcripts.
+ */
+type DiscoveryAnalysis = {
+  /** Systems the AI has inferred are in scope (explicit + ghost). */
+  systemsInScope: { name: string; note?: string; ghost?: boolean }[];
+  /** Questions we still need answers to before we can scan. */
+  openQuestions: string[];
+  /** Recommended next actions — concrete, actionable. */
+  recommendedNextSteps: string[];
 };
 
 type DiscoveryContext = {
   transcripts: Transcript[];
   /** Total stakeholders expected to be interviewed before discovery is complete. */
   stakeholdersTarget: number;
+  /** Roles we still need to hear from. Empty when coverage is complete. */
+  missingStakeholders?: string[];
   /** 1–2 sentence reasoning snippet summarizing what was learned across calls. */
   keyFinding?: string;
+  /** Full AI synthesis shown in the expanded drill-in. */
+  analysis?: DiscoveryAnalysis;
 };
 
 type Project = {
@@ -156,12 +187,74 @@ const ACTIVE_PROJECTS: Project[] = [
     href: "/platform",
     discovery: {
       transcripts: [
-        { id: "t1", role: "CFO", name: "Jane Okafor", minutes: 31, source: "granola" },
-        { id: "t2", role: "Ops lead", name: "Mark Reyes", minutes: 22, source: "granola" },
-        { id: "t3", role: "IT lead", name: "Priya Shah", minutes: 17, source: "granola" },
+        {
+          id: "t1",
+          role: "CFO",
+          name: "Jane Okafor",
+          minutes: 31,
+          source: "granola",
+          date: "Mar 11",
+          summary:
+            "Jane wants multi-subsidiary consolidation with intercompany eliminations. Current QBO close takes 9 business days.",
+          highlights: [
+            "Close currently takes 9 business days — target is 3",
+            "Needs subsidiary-level P&L for US Inc and IE Ltd",
+            "FX handled manually in spreadsheets today",
+            "Board pack auto-generation is a must-have for go-live",
+          ],
+        },
+        {
+          id: "t2",
+          role: "Ops lead",
+          name: "Mark Reyes",
+          minutes: 22,
+          source: "granola",
+          date: "Mar 13",
+          summary:
+            "Mark flagged a Shopify storefront that syncs nightly into QBO via a custom script — not in the original SOW scope.",
+          highlights: [
+            "Shopify → QBO nightly sync runs off a Zapier workflow",
+            "Inventory is tracked in a separate Airtable base",
+            "Refunds require manual GL reclass each month",
+          ],
+        },
+        {
+          id: "t3",
+          role: "IT lead",
+          name: "Priya Shah",
+          minutes: 17,
+          source: "granola",
+          date: "Mar 14",
+          summary:
+            "Priya confirmed API access rights and OAuth setup is ready. Flagged a legacy ADP payroll integration that feeds GL.",
+          highlights: [
+            "NetSuite sandbox provisioned, OAuth ready",
+            "ADP payroll posts JE to GL 5000–5099 nightly",
+            "SSO is Okta — will need scopes for finance role",
+          ],
+        },
       ],
       stakeholdersTarget: 3,
       keyFinding: "Ghost system flagged · Shopify consumer SOR syncs nightly into QBO",
+      analysis: {
+        systemsInScope: [
+          { name: "QBO Advanced", note: "Primary GL · 94K records" },
+          { name: "Shopify", note: "Consumer SOR · nightly sync", ghost: true },
+          { name: "Airtable", note: "Inventory side-car", ghost: true },
+          { name: "ADP", note: "Payroll JE nightly" },
+          { name: "NetSuite OneWorld", note: "Target ERP" },
+        ],
+        openQuestions: [
+          "Is the Shopify integration expected to survive post-migration, or be replaced by NetSuite SuiteCommerce?",
+          "What's the intercompany pricing rule between US Inc and IE Ltd?",
+          "Which ADP GL mappings are still active vs. legacy?",
+        ],
+        recommendedNextSteps: [
+          "Request read-only QBO credentials to run the Scan step",
+          "Schedule a 20-min follow-up with Jane on FX consolidation rules",
+          "Export Airtable schema to assess inventory migration effort",
+        ],
+      },
     },
     reasoning: [
       {
@@ -328,10 +421,43 @@ const ACTIVE_PROJECTS: Project[] = [
     href: "/platform",
     discovery: {
       transcripts: [
-        { id: "t1", role: "Controller", name: "Dan Whittaker", minutes: 28, source: "zoom" },
+        {
+          id: "t1",
+          role: "Controller",
+          name: "Dan Whittaker",
+          minutes: 28,
+          source: "zoom",
+          date: "Feb 2",
+          summary:
+            "Dan walked through their current QBO Simple Start setup. Biggest pain: inventory lives in Airtable and is reconciled manually each month.",
+          highlights: [
+            "Ops runs a side-car Airtable for container-level inventory",
+            "Manual month-end reconciliation takes ~14 hours",
+            "Wants COGS by shipping lane in NetSuite",
+            "No current multi-currency handling — all USD today",
+          ],
+        },
       ],
       stakeholdersTarget: 3,
+      missingStakeholders: ["Ops manager", "CEO or CFO"],
       keyFinding: "NetSuite sandbox access pending · Ops runs side-car Airtable for inventory",
+      analysis: {
+        systemsInScope: [
+          { name: "QBO Simple Start", note: "Primary GL · light usage" },
+          { name: "Airtable", note: "Inventory side-car", ghost: true },
+          { name: "NetSuite", note: "Target ERP · sandbox pending" },
+        ],
+        openQuestions: [
+          "Who owns the Airtable inventory base day-to-day?",
+          "Is there an operations stakeholder available for a follow-up call?",
+          "Will historical data need to be migrated, or is a cutover-only approach acceptable?",
+        ],
+        recommendedNextSteps: [
+          "Escalate NetSuite sandbox credential request — stalled 41 days",
+          "Schedule discovery call with Ops manager (currently missing)",
+          "Validate COA approach with CEO or CFO before drafting BRD",
+        ],
+      },
     },
     reasoning: [
       {
@@ -375,11 +501,58 @@ const ACTIVE_PROJECTS: Project[] = [
     href: "/platform",
     discovery: {
       transcripts: [
-        { id: "t1", role: "CEO", name: "Rafael Ortiz", minutes: 24, source: "granola" },
-        { id: "t2", role: "Finance lead", name: "Lena Park", minutes: 35, source: "granola" },
+        {
+          id: "t1",
+          role: "CEO",
+          name: "Rafael Ortiz",
+          minutes: 24,
+          source: "granola",
+          date: "Feb 18",
+          summary:
+            "Rafael wants clearer visibility into per-taproom margin. Currently everything rolls up as a single P&L.",
+          highlights: [
+            "Three taprooms plus wholesale — wants each as its own class",
+            "Considering opening a fourth location in Q3 2026",
+            "Monthly investor report is the forcing function for clean data",
+          ],
+        },
+        {
+          id: "t2",
+          role: "Finance lead",
+          name: "Lena Park",
+          minutes: 35,
+          source: "granola",
+          date: "Feb 20",
+          summary:
+            "Lena walked through the COA. Taproom POS (Toast) feeds QBO nightly via a batch import — fragile and error-prone.",
+          highlights: [
+            "Toast POS → QBO nightly batch, breaks ~1x/month",
+            "Class tracking exists in QBO but is inconsistently applied",
+            "Inventory sits in Ekos (brewery-specific) — not QBO",
+            "Excise tax handling needs review against new rules",
+          ],
+        },
       ],
       stakeholdersTarget: 2,
       keyFinding: "Taproom POS feeds QBO nightly · needs class-based tracking in NetSuite",
+      analysis: {
+        systemsInScope: [
+          { name: "QBO Plus", note: "Primary GL · class tracking enabled" },
+          { name: "Toast POS", note: "Nightly batch feed", ghost: true },
+          { name: "Ekos", note: "Brewery inventory & production", ghost: true },
+          { name: "NetSuite SuiteSuccess", note: "Target ERP" },
+        ],
+        openQuestions: [
+          "Confirm per-taproom class scheme with Lena before BRD v2",
+          "Is Ekos staying post-migration, or folding into NetSuite?",
+          "Excise tax: new vs. legacy rules for opening periods?",
+        ],
+        recommendedNextSteps: [
+          "Follow up on BRD v1 feedback — awaiting response 43 days",
+          "Export Toast POS integration spec for ghost-system scope",
+          "Draft class structure proposal ahead of next finance call",
+        ],
+      },
     },
     reasoning: [
       {
@@ -683,6 +856,443 @@ function ProjectsView() {
       )}
 
       <PastMigrations projects={PAST_PROJECTS} />
+    </div>
+  );
+}
+
+// ————————————————————————————————————————————————————————————————
+// Discovery Expansion Panel
+//
+// Rendered when a user expands a Discovery-phase project row. This is the
+// primary drill-in for understanding where a pre-implementation engagement
+// stands — before we have system access, discovery context is the only
+// context. The panel surfaces:
+//
+//   1. Stakeholder coverage header — who we've heard from, who's missing
+//   2. Transcripts column — per-call summary + verbatim highlights
+//   3. Synthesis column — systems in scope, open questions, next steps
+//   4. Project-scoped chat — ask anything about this specific discovery
+//
+// The chat is context-scoped to this project's transcripts + analysis, so
+// follow-up questions ("what did the CFO say about FX?") can reference
+// the specific transcript highlights without extra prompt engineering.
+// ————————————————————————————————————————————————————————————————
+
+function DiscoveryExpansionPanel({ project }: { project: Project }) {
+  const d = project.discovery!;
+  const captured = d.transcripts.length;
+  const target = d.stakeholdersTarget;
+  const totalMinutes = d.transcripts.reduce((s, t) => s + t.minutes, 0);
+  const isComplete = captured >= target;
+
+  return (
+    <div className="px-6 pb-6 pt-1">
+      {/* Panel header — coverage + totals */}
+      <div className="flex items-center justify-between gap-4 mb-3 pb-3 border-b border-black/[0.06]">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
+            <Mic className="w-3 h-3" strokeWidth={2} aria-hidden />
+            Discovery
+          </div>
+          <Separator orientation="vertical" className="h-3 bg-black/[0.1]" />
+          <div className="flex items-center gap-1.5 text-[11px] text-[#0f0e0d]/70">
+            <span
+              className={cn(
+                "inline-block w-1.5 h-1.5 rounded-full",
+                isComplete ? "bg-[#1e6b3a]" : "bg-[#c78a36]",
+              )}
+              aria-hidden
+            />
+            <span className="tabular-nums">
+              {captured} of {target} stakeholders
+            </span>
+          </div>
+          <Separator orientation="vertical" className="h-3 bg-black/[0.1]" />
+          <span className="text-[11px] text-[#0f0e0d]/70 tabular-nums">
+            {totalMinutes}m of recordings
+          </span>
+        </div>
+        <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium">
+          AI synthesis · live
+        </span>
+      </div>
+
+      {/* Body — two columns: transcripts | analysis */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-6">
+        <TranscriptsColumn
+          transcripts={d.transcripts}
+          missing={d.missingStakeholders}
+          target={target}
+        />
+        <AnalysisColumn analysis={d.analysis} keyFinding={d.keyFinding} />
+      </div>
+
+      {/* Chat input — scoped to this project's discovery context */}
+      <DiscoveryChatInput project={project} />
+    </div>
+  );
+}
+
+function TranscriptsColumn({
+  transcripts,
+  missing,
+  target,
+}: {
+  transcripts: Transcript[];
+  missing?: string[];
+  target: number;
+}) {
+  const gapCount = Math.max(0, target - transcripts.length);
+
+  return (
+    <div className="min-w-0">
+      <SectionLabel icon={FileText} label="Transcripts" count={transcripts.length} />
+      <Accordion
+        type="multiple"
+        defaultValue={[transcripts[0]?.id].filter(Boolean) as string[]}
+        className="mt-2 flex flex-col gap-2"
+      >
+        {transcripts.map((t) => (
+          <AccordionItem
+            key={t.id}
+            value={t.id}
+            className="rounded-md border border-black/[0.06] bg-white overflow-hidden"
+          >
+            <AccordionTrigger className="px-3 py-2.5 hover:no-underline hover:bg-[#fafaf8] [&[data-state=open]]:border-b [&[data-state=open]]:border-black/[0.06]">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#1e6b3a] flex-shrink-0" />
+                <span className="text-[12px] font-medium text-[#0f0e0d] truncate">
+                  {t.role} · {t.name}
+                </span>
+                <span className="text-[10.5px] text-[#0f0e0d]/45 tabular-nums flex-shrink-0">
+                  {t.minutes}m
+                </span>
+                {t.date && (
+                  <>
+                    <Separator
+                      orientation="vertical"
+                      className="h-2.5 bg-black/[0.1]"
+                    />
+                    <span className="text-[10.5px] text-[#0f0e0d]/45">
+                      {t.date}
+                    </span>
+                  </>
+                )}
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-3 pt-2.5 pb-3">
+              {t.summary && (
+                <p className="text-[12px] text-[#0f0e0d]/75 leading-relaxed mb-2.5">
+                  {t.summary}
+                </p>
+              )}
+              {t.highlights && t.highlights.length > 0 && (
+                <>
+                  <div className="text-[9.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium mb-1.5">
+                    Highlights
+                  </div>
+                  <ul className="flex flex-col gap-1">
+                    {t.highlights.map((h, i) => (
+                      <li
+                        key={i}
+                        className="flex gap-2 text-[11.5px] text-[#0f0e0d]/75 leading-snug"
+                      >
+                        <span
+                          className="text-[#0f0e0d]/30 flex-shrink-0"
+                          aria-hidden
+                        >
+                          ·
+                        </span>
+                        <span>{h}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <div className="mt-3 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium">
+                Source · {t.source ?? "granola"}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+
+        {/* Missing-stakeholder placeholders */}
+        {Array.from({ length: gapCount }).map((_, i) => (
+          <div
+            key={`missing-${i}`}
+            className="rounded-md border border-dashed border-[#c78a36]/40 bg-[#fbf2e1]/30 px-3 py-2 flex items-center gap-2"
+          >
+            <CircleDashed
+              className="w-3 h-3 text-[#c78a36]"
+              strokeWidth={2}
+              aria-hidden
+            />
+            <span className="text-[11.5px] text-[#c78a36] font-medium">
+              {missing?.[i] ?? "Stakeholder needed"}
+            </span>
+            <span className="ml-auto text-[10px] uppercase tracking-[0.14em] text-[#c78a36]/70 font-medium">
+              Schedule call
+            </span>
+          </div>
+        ))}
+      </Accordion>
+    </div>
+  );
+}
+
+function AnalysisColumn({
+  analysis,
+  keyFinding,
+}: {
+  analysis?: DiscoveryAnalysis;
+  keyFinding?: string;
+}) {
+  if (!analysis) {
+    return (
+      <div className="min-w-0">
+        <SectionLabel icon={Brain} label="Analysis" />
+        {keyFinding && (
+          <p className="mt-2 text-[12px] italic text-[#0f0e0d]/60 leading-snug">
+            {keyFinding}
+          </p>
+        )}
+        <p className="mt-3 text-[11.5px] text-[#0f0e0d]/45">
+          Further analysis will generate once more transcripts are captured.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-w-0 flex flex-col gap-4">
+      <SectionLabel icon={Brain} label="Analysis" />
+
+      {keyFinding && (
+        <div className="rounded-md bg-[#fafaf8] border border-black/[0.05] px-3 py-2.5">
+          <div className="text-[9.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium mb-1">
+            Key finding
+          </div>
+          <p className="text-[12px] italic text-[#0f0e0d]/80 leading-snug">
+            {keyFinding}
+          </p>
+        </div>
+      )}
+
+      <AnalysisBlock
+        label="Systems in scope"
+        count={analysis.systemsInScope.length}
+      >
+        <ul className="flex flex-col gap-1.5">
+          {analysis.systemsInScope.map((s, i) => (
+            <li
+              key={i}
+              className="flex items-center gap-2 text-[11.5px] text-[#0f0e0d]/80"
+            >
+              <span className="font-medium text-[#0f0e0d]">{s.name}</span>
+              {s.note && (
+                <>
+                  <Separator
+                    orientation="vertical"
+                    className="h-2.5 bg-black/[0.1]"
+                  />
+                  <span className="text-[#0f0e0d]/55 truncate">{s.note}</span>
+                </>
+              )}
+              {s.ghost && (
+                <span className="ml-auto inline-flex items-center gap-1 text-[9.5px] uppercase tracking-[0.12em] text-[#8a5a12] bg-[#fbf2e1] border border-[#ecd6a8] rounded-full px-1.5 py-0.5 font-medium flex-shrink-0">
+                  Ghost
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </AnalysisBlock>
+
+      <AnalysisBlock
+        label="Open questions"
+        count={analysis.openQuestions.length}
+      >
+        <ul className="flex flex-col gap-1.5">
+          {analysis.openQuestions.map((q, i) => (
+            <li
+              key={i}
+              className="flex gap-2 text-[11.5px] text-[#0f0e0d]/75 leading-snug"
+            >
+              <span
+                className="text-[#c78a36] font-medium flex-shrink-0 tabular-nums"
+                aria-hidden
+              >
+                {i + 1}.
+              </span>
+              <span>{q}</span>
+            </li>
+          ))}
+        </ul>
+      </AnalysisBlock>
+
+      <AnalysisBlock
+        label="Recommended next steps"
+        count={analysis.recommendedNextSteps.length}
+      >
+        <ul className="flex flex-col gap-1.5">
+          {analysis.recommendedNextSteps.map((s, i) => (
+            <li
+              key={i}
+              className="flex gap-2 text-[11.5px] text-[#0f0e0d]/75 leading-snug"
+            >
+              <ArrowRight
+                className="w-3 h-3 text-[#0f0e0d]/40 flex-shrink-0 mt-0.5"
+                strokeWidth={2}
+                aria-hidden
+              />
+              <span>{s}</span>
+            </li>
+          ))}
+        </ul>
+      </AnalysisBlock>
+    </div>
+  );
+}
+
+function AnalysisBlock({
+  label,
+  count,
+  children,
+}: {
+  label: string;
+  count?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className="text-[9.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium">
+          {label}
+        </span>
+        {typeof count === "number" && (
+          <span className="text-[9.5px] font-mono text-[#0f0e0d]/35 tabular-nums">
+            {count}
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SectionLabel({
+  icon: Icon,
+  label,
+  count,
+}: {
+  icon: typeof Mic;
+  label: string;
+  count?: number;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
+        <Icon className="w-3 h-3" strokeWidth={2} aria-hidden />
+        {label}
+      </div>
+      {typeof count === "number" && (
+        <span className="text-[10px] font-mono text-[#0f0e0d]/40 tabular-nums">
+          {count}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Project-scoped chat input for asking questions about this specific
+ * discovery. The UX intent is that an engagement partner can pull up a
+ * project and ask things like "what did the CFO say about FX handling?"
+ * or "draft a follow-up email summarizing what we know" — scoped to the
+ * transcripts + analysis already loaded into the panel.
+ *
+ * Non-wired in this scaffold: the submit handler is local state only.
+ * When wiring to a real backend, pass `project.discovery` as context in
+ * the system prompt so responses can cite specific transcripts.
+ */
+function DiscoveryChatInput({ project }: { project: Project }) {
+  const [value, setValue] = useState("");
+  const [isPending, setIsPending] = useState(false);
+
+  const suggestions = [
+    "Summarize what each stakeholder said",
+    "What are the biggest risks we've surfaced?",
+    "Draft a follow-up email to fill the gaps",
+  ];
+
+  const handleSubmit = () => {
+    if (!value.trim()) return;
+    setIsPending(true);
+    // Scaffold: no network call, just visually acknowledge + clear.
+    setTimeout(() => {
+      setValue("");
+      setIsPending(false);
+    }, 600);
+  };
+
+  return (
+    <div className="mt-5 pt-5 border-t border-black/[0.06]">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
+          <MessageSquare className="w-3 h-3" strokeWidth={2} aria-hidden />
+          Ask about this discovery
+        </div>
+        <span className="text-[10px] text-[#0f0e0d]/35">
+          Scoped to {project.company}
+        </span>
+      </div>
+
+      <div className="rounded-lg border border-black/[0.08] bg-white focus-within:border-black/[0.2] transition-colors">
+        <textarea
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+          placeholder={`Ask anything about ${project.company}'s discovery…`}
+          rows={2}
+          disabled={isPending}
+          className="w-full resize-none bg-transparent px-3 py-2.5 text-[12.5px] text-[#0f0e0d] placeholder:text-[#0f0e0d]/35 outline-none leading-relaxed"
+        />
+        <div className="flex items-center justify-between gap-2 px-2 pb-2">
+          <div className="flex items-center gap-1 flex-wrap">
+            {suggestions.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setValue(s)}
+                disabled={isPending}
+                className="text-[10.5px] text-[#0f0e0d]/55 bg-[#fafaf8] hover:bg-black/[0.05] hover:text-[#0f0e0d] border border-black/[0.06] rounded-full px-2 py-0.5 transition-colors disabled:opacity-40"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!value.trim() || isPending}
+            className="inline-flex items-center gap-1.5 rounded-md bg-[#0f0e0d] text-white px-3 py-1.5 text-[11px] font-medium hover:bg-[#0f0e0d]/85 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isPending ? (
+              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+            ) : (
+              <>
+                Send
+                <ArrowRight className="w-3 h-3" strokeWidth={2} />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1245,9 +1855,12 @@ function ProjectRow({
         />
       </button>
 
-      {active && project.reasoning && (
-        <ReasoningPanel steps={project.reasoning} />
-      )}
+      {active &&
+        (project.discovery ? (
+          <DiscoveryExpansionPanel project={project} />
+        ) : project.reasoning ? (
+          <ReasoningPanel steps={project.reasoning} />
+        ) : null)}
     </div>
   );
 }
