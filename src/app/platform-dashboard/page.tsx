@@ -112,6 +112,24 @@ type DiscoveryAnalysis = {
   recommendedNextSteps: string[];
 };
 
+/**
+ * A call that's on the calendar but hasn't happened yet. Surfaced on the
+ * timeline as an outlined/dashed dot in the future portion of the axis,
+ * and inline under each swim-lane so partners can see at a glance when
+ * they'll re-engage a client.
+ */
+type ScheduledCall = {
+  id: string;
+  role: string;
+  name: string;
+  /** "Apr 21" shorthand — parsed against the current reference year. */
+  date: string;
+  /** Optional time-of-day, e.g. "10:30 AM". */
+  time?: string;
+  /** What this call is intended to cover. Shown in hover + inline. */
+  topic?: string;
+};
+
 type DiscoveryContext = {
   transcripts: Transcript[];
   /** Total stakeholders expected to be interviewed before discovery is complete. */
@@ -122,6 +140,12 @@ type DiscoveryContext = {
   keyFinding?: string;
   /** Full AI synthesis shown in the expanded drill-in. */
   analysis?: DiscoveryAnalysis;
+  /** Next call on the calendar. Absence is itself a signal — a stalled
+   *  engagement with incomplete coverage and no scheduled follow-up. */
+  nextCall?: ScheduledCall;
+  /** One-line status of where discovery stands right now (distinct from
+   *  `keyFinding` which summarizes substantive findings). */
+  stageSummary?: string;
 };
 
 type Project = {
@@ -236,6 +260,15 @@ const ACTIVE_PROJECTS: Project[] = [
       ],
       stakeholdersTarget: 3,
       keyFinding: "Ghost system flagged · Shopify consumer SOR syncs nightly into QBO",
+      stageSummary: "Coverage complete · awaiting follow-up to validate FX consolidation rules before Scan",
+      nextCall: {
+        id: "n1",
+        role: "CFO",
+        name: "Jane Okafor",
+        date: "Apr 21",
+        time: "10:30 AM",
+        topic: "FX consolidation rules + intercompany pricing between US Inc and IE Ltd",
+      },
       analysis: {
         systemsInScope: [
           { name: "QBO Advanced", note: "Primary GL · 94K records" },
@@ -441,6 +474,15 @@ const ACTIVE_PROJECTS: Project[] = [
       stakeholdersTarget: 3,
       missingStakeholders: ["Ops manager", "CEO or CFO"],
       keyFinding: "NetSuite sandbox access pending · Ops runs side-car Airtable for inventory",
+      stageSummary: "Partial coverage · escalation call booked to unblock NetSuite sandbox credentials",
+      nextCall: {
+        id: "n1",
+        role: "Ops manager",
+        name: "Nora Belmont",
+        date: "Apr 23",
+        time: "2:00 PM",
+        topic: "Inventory reconciliation workflow + Airtable ownership",
+      },
       analysis: {
         systemsInScope: [
           { name: "QBO Simple Start", note: "Primary GL · light usage" },
@@ -535,6 +577,9 @@ const ACTIVE_PROJECTS: Project[] = [
       ],
       stakeholdersTarget: 2,
       keyFinding: "Taproom POS feeds QBO nightly · needs class-based tracking in NetSuite",
+      stageSummary: "Coverage complete · stalled 43 days awaiting BRD v1 feedback · no follow-up booked",
+      // Intentionally no nextCall — the engagement is stalled and nothing
+      // is on the calendar. The timeline renders this gap explicitly.
       analysis: {
         systemsInScope: [
           { name: "QBO Plus", note: "Primary GL · class tracking enabled" },
@@ -1634,6 +1679,7 @@ function DiscoveryTimeline({ projects }: { projects: Project[] }) {
   // Reference "today" matches the system locale pinned at the top of this
   // chat (4/17/2026). Using a fixed reference keeps the demo deterministic.
   const TODAY = new Date("2026-04-17");
+  const DAY = 24 * 60 * 60 * 1000;
 
   // Parse "Mar 11" style dates into a Date in the current year.
   const parseDate = (s?: string): Date | null => {
@@ -1642,8 +1688,8 @@ function DiscoveryTimeline({ projects }: { projects: Project[] }) {
     return isNaN(d.getTime()) ? null : d;
   };
 
-  // Collect every call with a parsed date.
-  const calls = projects.flatMap((p) =>
+  // Collect every past call with a parsed date.
+  const pastCalls = projects.flatMap((p) =>
     (p.discovery?.transcripts ?? [])
       .map((t) => ({
         projectId: p.id,
@@ -1654,17 +1700,34 @@ function DiscoveryTimeline({ projects }: { projects: Project[] }) {
       .filter((c): c is typeof c & { date: Date } => c.date !== null),
   );
 
-  if (calls.length === 0) return null;
+  // Collect every scheduled future call.
+  const futureCalls = projects.flatMap((p) => {
+    const n = p.discovery?.nextCall;
+    if (!n) return [];
+    const date = parseDate(n.date);
+    if (!date) return [];
+    return [{ projectId: p.id, company: p.company, call: n, date }];
+  });
 
-  // Normalize the time axis: earliest call → today, with a 4-day left pad
-  // so the first dot doesn't sit flush against the lane's start.
-  const rawMin = Math.min(...calls.map((c) => c.date.getTime()));
-  const minMs = rawMin - 4 * 24 * 60 * 60 * 1000;
-  const maxMs = TODAY.getTime();
+  if (pastCalls.length === 0) return null;
+
+  // Normalize the time axis:
+  //   left edge  = earliest call - 4d pad
+  //   right edge = max(today, latest scheduled call) + 4d pad
+  // This keeps past context visible while making room for future calls.
+  const rawMin = Math.min(...pastCalls.map((c) => c.date.getTime()));
+  const rawMaxFuture = futureCalls.length
+    ? Math.max(...futureCalls.map((c) => c.date.getTime()))
+    : TODAY.getTime();
+  const rawMax = Math.max(TODAY.getTime(), rawMaxFuture);
+
+  const minMs = rawMin - 4 * DAY;
+  const maxMs = rawMax + 4 * DAY;
   const rangeMs = Math.max(1, maxMs - minMs);
   const pctOf = (d: Date) => ((d.getTime() - minMs) / rangeMs) * 100;
+  const todayPct = pctOf(TODAY);
 
-  // Compute month tick marks between min and today.
+  // Month tick marks between min and max.
   const ticks: { label: string; pct: number }[] = [];
   const cursor = new Date(minMs);
   cursor.setDate(1);
@@ -1686,23 +1749,40 @@ function DiscoveryTimeline({ projects }: { projects: Project[] }) {
     month: "short",
     day: "numeric",
   });
+  const maxLabel = new Date(rawMax).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 
   return (
     <div className="px-4 pt-3 pb-4 bg-[#fafaf8]/60">
-      {/* Eyebrow: label + date range */}
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
-          Call Timeline
+      {/* Eyebrow: label + legend + date range */}
+      <div className="flex items-center justify-between gap-4 mb-2.5">
+        <div className="flex items-center gap-3">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
+            Call Timeline
+          </div>
+          <Separator orientation="vertical" className="h-3 bg-black/[0.08]" />
+          <div className="flex items-center gap-2.5 text-[9.5px] text-[#0f0e0d]/50">
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-[#1e6b3a]" />
+              Completed
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full border border-dashed border-[#1e6b3a] bg-white" />
+              Scheduled
+            </span>
+          </div>
         </div>
         <div className="text-[10px] text-[#0f0e0d]/45 tabular-nums">
-          {minLabel} &mdash; Today ({todayLabel})
+          {minLabel} &mdash; {maxLabel}
         </div>
       </div>
 
-      <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-3">
+      <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-3">
         {/* Spacer above lane labels so the axis aligns with the first lane's top */}
         <div />
-        {/* Date axis with month ticks */}
+        {/* Date axis with month ticks + today marker */}
         <div className="relative h-3.5 mb-1">
           <div className="absolute inset-x-0 top-1/2 h-px bg-black/[0.08]" />
           {ticks.map((t) => (
@@ -1717,17 +1797,28 @@ function DiscoveryTimeline({ projects }: { projects: Project[] }) {
               </span>
             </div>
           ))}
+          {/* Today label above axis */}
+          <div
+            className="absolute -top-0.5 -translate-x-1/2"
+            style={{ left: `${todayPct}%` }}
+          >
+            <span className="text-[9px] uppercase tracking-[0.12em] text-[#1e6b3a] font-semibold bg-[#fafaf8]/60 px-1">
+              Today
+            </span>
+          </div>
         </div>
 
-        {/* One row per project */}
+        {/* One row per project. The "today" vertical line is drawn inside
+            each lane so it lines up pixel-perfect with the dots above/below. */}
         {projects.map((p) => {
           const d = p.discovery;
           if (!d) return null;
-          const projectCalls = calls.filter((c) => c.projectId === p.id);
-          if (projectCalls.length === 0) return null;
-          const lastCall = projectCalls.reduce((a, b) =>
+          const projectPastCalls = pastCalls.filter((c) => c.projectId === p.id);
+          if (projectPastCalls.length === 0) return null;
+          const lastCall = projectPastCalls.reduce((a, b) =>
             a.date.getTime() > b.date.getTime() ? a : b,
           );
+          const nextCallDate = d.nextCall ? parseDate(d.nextCall.date) : null;
           const captured = d.transcripts.length;
           const isComplete = captured >= d.stakeholdersTarget;
 
@@ -1735,32 +1826,16 @@ function DiscoveryTimeline({ projects }: { projects: Project[] }) {
             <TimelineLane
               key={p.id}
               project={p}
-              calls={projectCalls}
+              calls={projectPastCalls}
               lastCallPct={pctOf(lastCall.date)}
               pctOf={pctOf}
               isComplete={isComplete}
+              todayPct={todayPct}
+              nextCall={d.nextCall}
+              nextCallDate={nextCallDate}
             />
           );
         })}
-
-        {/* Today marker column — vertical dashed line across all lanes.
-            Implemented via an absolutely-positioned overlay spanning the
-            grid, not per-lane, so it renders as a single unified line. */}
-      </div>
-
-      {/* Footer: today label aligned to 100% */}
-      <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 mt-1">
-        <div />
-        <div className="relative h-3">
-          <div
-            className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
-            style={{ left: `100%` }}
-          >
-            <span className="text-[9px] uppercase tracking-[0.12em] text-[#1e6b3a] font-medium">
-              Today
-            </span>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -1778,6 +1853,9 @@ function TimelineLane({
   lastCallPct,
   pctOf,
   isComplete,
+  todayPct,
+  nextCall,
+  nextCallDate,
 }: {
   project: Project;
   calls: {
@@ -1789,14 +1867,21 @@ function TimelineLane({
   lastCallPct: number;
   pctOf: (d: Date) => number;
   isComplete: boolean;
+  todayPct: number;
+  nextCall?: ScheduledCall;
+  nextCallDate: Date | null;
 }) {
   const d = project.discovery!;
+  const firstCall = calls.reduce((a, b) => (a.date < b.date ? a : b));
+  const lastCall = calls.reduce((a, b) => (a.date > b.date ? a : b));
+  const hasNext = !!(nextCall && nextCallDate);
+  const nextPct = hasNext ? pctOf(nextCallDate!) : null;
 
   return (
     <>
-      {/* Left: project label + coverage */}
-      <div className="flex flex-col justify-center min-w-0 py-1.5">
-        <div className="text-[11px] font-medium text-[#0f0e0d] truncate leading-tight">
+      {/* Left: project label + coverage + stage summary */}
+      <div className="flex flex-col justify-center min-w-0 py-2">
+        <div className="text-[11.5px] font-medium text-[#0f0e0d] truncate leading-tight">
           {project.company}
         </div>
         <div className="flex items-center gap-1 mt-0.5">
@@ -1807,19 +1892,50 @@ function TimelineLane({
             )}
             aria-hidden
           />
-          <span className="text-[9.5px] text-[#0f0e0d]/50 tabular-nums">
-            {d.transcripts.length}/{d.stakeholdersTarget}
+          <span className="text-[9.5px] text-[#0f0e0d]/55 tabular-nums">
+            {d.transcripts.length}/{d.stakeholdersTarget} stakeholders
           </span>
         </div>
       </div>
 
-      {/* Right: lane track + call dots */}
-      <div className="relative h-10 py-1.5">
+      {/* Right: lane track + call dots + today divider + next call */}
+      <div className="relative h-11 py-2">
         {/* Baseline track — subtle, always visible */}
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-black/[0.06]" />
 
-        {/* Trailing gap from last call to today, if incomplete — dashed amber */}
-        {!isComplete && (
+        {/* Vertical "today" divider — spans the full lane height */}
+        <div
+          className="absolute top-0 bottom-0 w-px bg-[#1e6b3a]/25"
+          style={{ left: `${todayPct}%` }}
+          aria-hidden
+        />
+
+        {/* Solid past-call segment between first and last captured call */}
+        {calls.length > 1 && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-[1.5px] bg-[#1e6b3a]/35 rounded-full"
+            style={{
+              left: `${pctOf(firstCall.date)}%`,
+              width: `${pctOf(lastCall.date) - pctOf(firstCall.date)}%`,
+            }}
+            aria-hidden
+          />
+        )}
+
+        {/* Segment from last past call → next scheduled call (dashed green
+            if a next call is booked, dashed amber if nothing is booked and
+            coverage is incomplete). */}
+        {hasNext && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-0 border-t border-dashed border-[#1e6b3a]/50"
+            style={{
+              left: `${lastCallPct}%`,
+              width: `${Math.max(0, nextPct! - lastCallPct)}%`,
+            }}
+            aria-hidden
+          />
+        )}
+        {!hasNext && !isComplete && (
           <div
             className="absolute top-1/2 -translate-y-1/2 h-0 border-t border-dashed border-[#c78a36]/60"
             style={{
@@ -1830,22 +1946,7 @@ function TimelineLane({
           />
         )}
 
-        {/* Solid connecting line between first and last call on this lane */}
-        {calls.length > 1 && (
-          <div
-            className="absolute top-1/2 -translate-y-1/2 h-[1.5px] bg-[#0f0e0d]/25 rounded-full"
-            style={{
-              left: `${pctOf(calls.reduce((a, b) => (a.date < b.date ? a : b)).date)}%`,
-              width: `${
-                pctOf(calls.reduce((a, b) => (a.date > b.date ? a : b)).date) -
-                pctOf(calls.reduce((a, b) => (a.date < b.date ? a : b)).date)
-              }%`,
-            }}
-            aria-hidden
-          />
-        )}
-
-        {/* Call dots */}
+        {/* Past call dots */}
         {calls.map(({ transcript, date }) => (
           <TimelineCallDot
             key={transcript.id}
@@ -1855,20 +1956,122 @@ function TimelineLane({
           />
         ))}
 
-        {/* "Needed" pill anchored to the right edge when gaps exist */}
-        {!isComplete && (
-          <div
-            className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-0"
-            style={{ right: 0 }}
-          >
-            <span className="inline-flex items-center gap-1 h-[18px] rounded-full border border-dashed border-[#c78a36]/60 bg-white px-1.5 text-[9px] uppercase tracking-[0.1em] text-[#c78a36] font-medium">
+        {/* Future scheduled call dot (outlined) */}
+        {hasNext && (
+          <TimelineScheduledDot
+            call={nextCall!}
+            date={nextCallDate!}
+            leftPct={nextPct!}
+          />
+        )}
+
+        {/* Status pill on the right edge.
+            - If next call booked: show "Next" pill (green, dashed outline)
+            - If incomplete and no next call: show "Stalled" pill (amber) */}
+        {hasNext ? (
+          <HoverCard openDelay={120} closeDelay={80}>
+            <HoverCardTrigger asChild>
+              <button
+                type="button"
+                className="absolute top-1/2 -translate-y-1/2 right-0 inline-flex items-center gap-1 h-[18px] rounded-full border border-dashed border-[#1e6b3a]/60 bg-white px-1.5 text-[9px] uppercase tracking-[0.1em] text-[#1e6b3a] font-medium hover:border-[#1e6b3a] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e6b3a]/30"
+              >
+                Next · {nextCall!.date}
+                {nextCall!.time && (
+                  <span className="text-[#1e6b3a]/60">· {nextCall!.time}</span>
+                )}
+              </button>
+            </HoverCardTrigger>
+            <HoverCardContent
+              side="top"
+              align="end"
+              className="w-64 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+            >
+              <NextCallHoverBody call={nextCall!} />
+            </HoverCardContent>
+          </HoverCard>
+        ) : (
+          !isComplete && (
+            <span className="absolute top-1/2 -translate-y-1/2 right-0 inline-flex items-center gap-1 h-[18px] rounded-full border border-dashed border-[#c78a36]/60 bg-white px-1.5 text-[9px] uppercase tracking-[0.1em] text-[#c78a36] font-medium">
               <CircleDashed className="h-2.5 w-2.5" strokeWidth={2.25} aria-hidden />
               {d.stakeholdersTarget - d.transcripts.length} needed
             </span>
+          )
+        )}
+
+        {/* Bottom-row stage summary — tucked below the track so it's
+            available at a glance without crowding the dots. */}
+        {d.stageSummary && (
+          <div className="absolute left-0 right-0 -bottom-0.5 text-[9.5px] text-[#0f0e0d]/45 italic leading-tight truncate">
+            {d.stageSummary}
           </div>
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * Future scheduled call — rendered as an outlined circle with a dashed
+ * ring so it visually contrasts with completed (filled) past calls.
+ */
+function TimelineScheduledDot({
+  call,
+  date,
+  leftPct,
+}: {
+  call: ScheduledCall;
+  date: Date;
+  leftPct: number;
+}) {
+  const dateLabel = date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full border border-dashed border-[#1e6b3a] bg-white ring-2 ring-white hover:border-[#1e6b3a] hover:bg-[#eaf3ec] transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1e6b3a]/30"
+          style={{ left: `${leftPct}%` }}
+          aria-label={`Scheduled: ${call.role} call on ${dateLabel}`}
+        >
+          <span className="sr-only">Scheduled call with {call.name}</span>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="top"
+        align="center"
+        className="w-64 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+      >
+        <NextCallHoverBody call={call} />
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+function NextCallHoverBody({ call }: { call: ScheduledCall }) {
+  return (
+    <div className="p-3">
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <span className="text-[10px] uppercase tracking-[0.14em] text-[#1e6b3a] font-semibold">
+          Scheduled · {call.role}
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium tabular-nums">
+          {call.date}
+          {call.time ? ` · ${call.time}` : ""}
+        </span>
+      </div>
+      <div className="text-[13px] font-semibold text-[#0f0e0d] leading-tight">
+        {call.name}
+      </div>
+      {call.topic && (
+        <p className="mt-2 pt-2 border-t border-black/[0.06] text-[11px] text-[#0f0e0d]/70 leading-snug">
+          {call.topic}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1979,12 +2182,13 @@ function DiscoveryRow({ project }: { project: Project }) {
         </div>
       </div>
 
-      {/* RIGHT: transcript chips + AI finding synthesized from those calls */}
+      {/* RIGHT: transcript chips + next call + AI finding */}
       <div className="min-w-0 flex flex-col gap-2">
         <div className="flex items-center gap-1.5 flex-wrap">
           {d.transcripts.map((t) => (
             <TranscriptChip key={t.id} transcript={t} />
           ))}
+          {d.nextCall && <NextCallChip call={d.nextCall} />}
           {Array.from({ length: Math.max(0, target - captured) }).map(
             (_, i) => (
               <span
@@ -2007,6 +2211,41 @@ function DiscoveryRow({ project }: { project: Project }) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Pill representing an upcoming scheduled call in the per-project row.
+ * Outlined/dashed to visually distinguish from completed transcript chips.
+ */
+function NextCallChip({ call }: { call: ScheduledCall }) {
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 h-[22px] rounded-full border border-dashed border-[#1e6b3a]/50 bg-white px-2 text-[10.5px] text-[#1e6b3a] leading-none hover:border-[#1e6b3a] hover:bg-[#eaf3ec]/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e6b3a]/30"
+        >
+          <span className="inline-block w-1.5 h-1.5 rounded-full border border-[#1e6b3a]" />
+          <span className="font-medium">Next · {call.role}</span>
+          <Separator
+            orientation="vertical"
+            className="h-2.5 bg-[#1e6b3a]/20"
+          />
+          <span className="tabular-nums text-[#1e6b3a]/70">
+            {call.date}
+            {call.time ? ` · ${call.time}` : ""}
+          </span>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="top"
+        align="start"
+        className="w-64 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+      >
+        <NextCallHoverBody call={call} />
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
@@ -2252,7 +2491,7 @@ function PastMigrations({ projects }: { projects: Project[] }) {
   );
 }
 
-// ————————————————————————————————————————————————————————————————
+// ——————————————————————————————————————————��—————————————————————
 // Chat view
 // ————————————————————————————————————————————————————————————————
 
