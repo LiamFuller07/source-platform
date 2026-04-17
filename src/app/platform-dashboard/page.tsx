@@ -687,7 +687,7 @@ type NavKey = "projects" | "chat";
 
 // ————————————————————————————————————————————————————————————————
 // Page
-// ————————————————————————————————————————————————————————————————
+// —————————————————————————————————————————————————————————————��——
 
 export default function PipelineDashboardPage() {
   const [nav, setNav] = useState<NavKey>("projects");
@@ -1361,7 +1361,7 @@ function DiscoveryChatInput({ project }: { project: Project }) {
 
 // ————————————————————————————————————————————————————————————————
 // Reasoning Panel (expanded project row body)
-// ————————————————————————————————————————————————————————————————
+// ——————————————————————————————————————————���—————————————————————
 
 const TOOL_KIND_META: Record<
   NonNullable<ReasoningStep["tool"]>["kind"],
@@ -1915,8 +1915,10 @@ function TimelineLane({
         </div>
       </div>
 
-      {/* Right: lane track + call dots + today divider + next call */}
-      <div className="relative h-11 py-2">
+      {/* Right: lane track + call dots + today divider + next call.
+          Track height is intentionally fixed; the narrative summary lives
+          in the following grid row so it can wrap without clipping. */}
+      <div className="relative h-9 py-2">
         {/* Baseline track — subtle, always visible */}
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-black/[0.06]" />
 
@@ -2001,7 +2003,7 @@ function TimelineLane({
             <HoverCardContent
               side="top"
               align="end"
-              className="w-64 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+              className="w-72 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
             >
               <NextCallHoverBody call={nextCall!} />
             </HoverCardContent>
@@ -2014,15 +2016,19 @@ function TimelineLane({
             </span>
           )
         )}
-
-        {/* Bottom-row stage summary — tucked below the track so it's
-            available at a glance without crowding the dots. */}
-        {d.stageSummary && (
-          <div className="absolute left-0 right-0 -bottom-0.5 text-[9.5px] text-[#0f0e0d]/45 italic leading-tight truncate">
-            {d.stageSummary}
-          </div>
-        )}
       </div>
+
+      {/* Stage summary row — empty left column, narrative paragraph on the
+          right. Lives as its own grid row so the copy can wrap naturally
+          without being clipped by the fixed-height track above. */}
+      {d.stageSummary && (
+        <>
+          <div aria-hidden />
+          <p className="text-[11px] text-[#0f0e0d]/55 leading-[1.5] pb-3 pr-4 max-w-[62ch]">
+            {d.stageSummary}
+          </p>
+        </>
+      )}
     </>
   );
 }
@@ -2060,7 +2066,7 @@ function TimelineScheduledDot({
       <HoverCardContent
         side="top"
         align="center"
-        className="w-64 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+        className="w-72 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
       >
         <NextCallHoverBody call={call} />
       </HoverCardContent>
@@ -2071,8 +2077,10 @@ function TimelineScheduledDot({
 function NextCallHoverBody({ call }: { call: ScheduledCall }) {
   return (
     <div className="p-3">
+      {/* Header: status eyebrow + date/time */}
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="text-[10px] uppercase tracking-[0.14em] text-[#1e6b3a] font-semibold">
+        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#1e6b3a] font-semibold">
+          <span className="inline-block w-1.5 h-1.5 rounded-full border border-dashed border-[#1e6b3a] bg-white" />
           Scheduled · {call.role}
         </span>
         <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium tabular-nums">
@@ -2080,11 +2088,20 @@ function NextCallHoverBody({ call }: { call: ScheduledCall }) {
           {call.time ? ` · ${call.time}` : ""}
         </span>
       </div>
+
+      {/* Name + stage meta */}
       <div className="text-[13px] font-semibold text-[#0f0e0d] leading-tight">
         {call.name}
       </div>
+      {call.stage && (
+        <div className="mt-0.5 text-[11px] text-[#0f0e0d]/70">
+          {call.stage}
+        </div>
+      )}
+
+      {/* Agenda / topic paragraph */}
       {call.topic && (
-        <p className="mt-2 pt-2 border-t border-black/[0.06] text-[11px] text-[#0f0e0d]/70 leading-snug">
+        <p className="mt-2 pt-2 border-t border-black/[0.06] text-[11px] text-[#0f0e0d]/70 leading-relaxed">
           {call.topic}
         </p>
       )}
@@ -2132,27 +2149,67 @@ function TimelineCallDot({
       <HoverCardContent
         side="top"
         align="center"
-        className="w-56 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+        className="w-72 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
       >
         <div className="p-3">
+          {/* Header row — role eyebrow + date */}
           <div className="flex items-center justify-between gap-2 mb-1.5">
-            <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/45 font-medium">
-              {transcript.role}
+            <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[#1e6b3a] font-semibold">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#1e6b3a]" />
+              Completed · {transcript.role}
             </span>
             <span className="text-[10px] uppercase tracking-[0.14em] text-[#0f0e0d]/35 font-medium tabular-nums">
               {dateLabel}
             </span>
           </div>
+
+          {/* Name + duration/source meta */}
           <div className="text-[13px] font-semibold text-[#0f0e0d] leading-tight">
             {transcript.name}
           </div>
           <div className="mt-0.5 text-[11px] text-[#0f0e0d]/55 tabular-nums">
             {transcript.minutes} min · {transcript.source ?? "granola"}
+            {transcript.stage && (
+              <>
+                <span className="text-[#0f0e0d]/25"> · </span>
+                <span className="text-[#0f0e0d]/70">{transcript.stage}</span>
+              </>
+            )}
           </div>
+
+          {/* Narrative summary */}
           {transcript.summary && (
-            <p className="mt-2 pt-2 border-t border-black/[0.06] text-[11px] text-[#0f0e0d]/70 leading-snug">
+            <p className="mt-2 pt-2 border-t border-black/[0.06] text-[11px] text-[#0f0e0d]/70 leading-relaxed">
               {transcript.summary}
             </p>
+          )}
+
+          {/* Top highlights — capped to 3 inside the hover to keep the
+              preview scannable; full list lives in the drill-in accordion. */}
+          {transcript.highlights && transcript.highlights.length > 0 && (
+            <div className="mt-2.5 pt-2.5 border-t border-black/[0.06]">
+              <div className="text-[9.5px] uppercase tracking-[0.14em] text-[#0f0e0d]/40 font-medium mb-1.5">
+                Highlights
+              </div>
+              <ul className="flex flex-col gap-1">
+                {transcript.highlights.slice(0, 3).map((h, i) => (
+                  <li
+                    key={i}
+                    className="flex gap-1.5 text-[11px] text-[#0f0e0d]/70 leading-snug"
+                  >
+                    <span className="text-[#0f0e0d]/30 flex-shrink-0" aria-hidden>
+                      ·
+                    </span>
+                    <span>{h}</span>
+                  </li>
+                ))}
+                {transcript.highlights.length > 3 && (
+                  <li className="text-[10px] text-[#0f0e0d]/40 italic pl-3">
+                    +{transcript.highlights.length - 3} more in transcript
+                  </li>
+                )}
+              </ul>
+            </div>
           )}
         </div>
       </HoverCardContent>
@@ -2258,7 +2315,7 @@ function NextCallChip({ call }: { call: ScheduledCall }) {
       <HoverCardContent
         side="top"
         align="start"
-        className="w-64 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
+        className="w-72 p-0 border-black/[0.08] shadow-[0_8px_24px_rgba(15,14,13,0.08)]"
       >
         <NextCallHoverBody call={call} />
       </HoverCardContent>
