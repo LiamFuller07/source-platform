@@ -286,16 +286,16 @@ function HeroStepPreview({ index }: { index: number }) {
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-[0.12em] text-[#0f0e0d]/40 mb-1.5">Target ERP</div>
-              <div className="rounded-md border border-black/[0.08] bg-[#fafaf8] px-2.5 py-2 text-[12px] text-[#0f0e0d] flex items-center gap-2">
+              <div className="rounded-md border border-black/[0.08] bg-[#fafaf8] px-3 py-2.5 text-[12px] text-[#0f0e0d] flex items-center justify-between gap-2">
                 <Image
                   src="/logos/netsuite.svg"
                   alt="NetSuite"
-                  width={60}
-                  height={12}
-                  style={{ height: 12, width: "auto" }}
+                  width={110}
+                  height={22}
+                  style={{ height: 22, width: "auto" }}
                   unoptimized
                 />
-                <span className="text-[#0f0e0d]/60">OneWorld</span>
+                <span className="text-[#0f0e0d]/60 text-[11px]">OneWorld</span>
               </div>
             </div>
             <div>
@@ -368,19 +368,19 @@ function HeroStepPreview({ index }: { index: number }) {
               Ready
             </span>
           </div>
-          <div className="flex flex-col gap-0.5 flex-1">
-            <FileRow icon="docx" name="BRD – QBO → NetSuite.docx" />
-            <FileRow icon="docx" name="SOW – Fixed Fee.docx" />
-            <FileRow icon="xlsx" name="COA Mapping.xlsx" />
-            <FileRow icon="docx" name="Migration Plan.docx" />
+          <div className="grid grid-cols-4 gap-1.5 flex-1 pt-1">
+            <MiniDocThumb label="BRD" tone="doc" page={1} />
+            <MiniDocThumb label="SOW" tone="doc" page={2} />
+            <MiniDocThumb label="COA" tone="sheet" page={3} />
+            <MiniDocThumb label="Plan" tone="doc" page={4} />
           </div>
-          <div className="mt-1.5 pt-2 border-t border-black/[0.05] flex items-center gap-2">
+          <div className="mt-2 pt-2 border-t border-black/[0.05] flex items-center gap-2">
             <Image
               src="/logos/netsuite.svg"
               alt="NetSuite"
-              width={60}
-              height={12}
-              style={{ height: 12, width: "auto" }}
+              width={110}
+              height={20}
+              style={{ height: 20, width: "auto" }}
               unoptimized
             />
             <span className="ml-auto text-[9.5px] text-[#0f6a3f] uppercase tracking-[0.08em]">implemented</span>
@@ -1182,7 +1182,7 @@ function RunMultipleTasks() {
 
 // ————————————————————————————————————————————————————————————————
 // Section 3b — Inspect Any Task (dedicated drilldown with BRD PDF)
-// ————————————————————————————————————————————————————————————————
+// ———————————————————————————————————————————��————————————————————
 
 function InspectAnyTask() {
   const [cursorPhase, setCursorPhase] = useState<"idle" | "hover" | "click">(
@@ -2035,6 +2035,52 @@ function CreateDeliverables() {
         </motion.div>
       </div>
     </section>
+  );
+}
+
+function MiniDocThumb({
+  label,
+  tone,
+  page,
+}: {
+  label: string;
+  tone: "doc" | "sheet";
+  page: number;
+}) {
+  return (
+    <div className="relative aspect-[0.77/1] bg-white border border-black/[0.08] rounded-sm overflow-hidden">
+      <div className="p-1 space-y-[2px]">
+        {tone === "doc" ? (
+          <>
+            <div className="h-[3px] w-[70%] bg-black/15 rounded-[1px]" />
+            <div className="h-[1.5px] w-full bg-black/10 rounded-[1px]" />
+            <div className="h-[1.5px] w-[82%] bg-black/10 rounded-[1px]" />
+            <div className="h-[1.5px] w-[60%] bg-black/10 rounded-[1px]" />
+            <div className="mt-1 h-[3px] w-[45%] bg-black/12 rounded-[1px]" />
+            <div className="h-[1.5px] w-full bg-black/10 rounded-[1px]" />
+            <div className="h-[1.5px] w-[72%] bg-black/10 rounded-[1px]" />
+          </>
+        ) : (
+          <>
+            <div className="h-[3px] w-[55%] bg-[#217346]/40 rounded-[1px]" />
+            <div className="mt-1 grid grid-cols-3 gap-[1.5px]">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-[3px] bg-black/8 rounded-[0.5px]"
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <span className="absolute bottom-[2px] left-1 text-[7px] font-mono text-[#0f0e0d]/40 uppercase tracking-[0.06em]">
+        {label}
+      </span>
+      <span className="absolute bottom-[2px] right-1 text-[7px] font-mono text-[#0f0e0d]/35">
+        {page}
+      </span>
+    </div>
   );
 }
 
